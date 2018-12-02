@@ -55,7 +55,7 @@ static void ram_disk_request(struct request_queue* queue) {
 
 static void ram_disk_page_op(struct request* req, struct bio_vec* bvec) {
   size_t start = (size_t)bvec->bv_offset + (size_t)req->__sector * 512;
-  if (start + (size_t)bvec->bv_len) {
+  if (start + (size_t)bvec->bv_len > info.size) {
     printk(KERN_INFO, "Out of bounds RAM disk access!");
     return;
   }
@@ -114,7 +114,7 @@ static int __init ram_disk_init(void) {
     goto fail;
   }
   info.major = register_blkdev(0, "ram_disk");
-  if (info.major < 0) {
+  if (info.major <= 0) {
     goto fail;
   }
   info.disk->major = info.major;

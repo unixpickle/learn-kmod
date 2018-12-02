@@ -91,6 +91,10 @@ static int __init ram_disk_init(void) {
   info.disk->major = 259;  // "blkext"
   info.disk->first_minor = 0;
   info.disk->fops = &ram_disk_ops;
+  info.disk->queue = info.queue;
+  memcpy(info.disk->disk_name, "ramdisk", 8);
+  set_capacity(info.disk, info.size / 512);
+  add_disk(info.disk);
 
   return 0;
 

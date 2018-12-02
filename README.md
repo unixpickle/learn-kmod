@@ -7,5 +7,5 @@ Learning how to create Linux kernel modules.
 On Ubuntu, here is how I got everything setup:
 
 ```
-sudo apt install -y build-essential linux-headers-`uname -r` libelf-dev
+sudo apt install -y linux-headers-`uname -r` libelf-dev
 ```

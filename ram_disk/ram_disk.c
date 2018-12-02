@@ -40,6 +40,7 @@ static struct block_device_operations ram_disk_ops = {
     .release = ram_disk_release,
     .ioctl = ram_disk_ioctl,
     .media_changed = ram_disk_media_changed,
+    .owner = THIS_MODULE,
 };
 
 static void ram_disk_request(struct request_queue* queue) {
@@ -102,17 +103,20 @@ static int __init ram_disk_init(void) {
   info.size = 1 << 20;
   info.data = vmalloc(info.size);
   if (!info.data) {
-    goto alloc_fail;
+    goto fail;
   }
   info.queue = blk_init_queue(ram_disk_request, &info.lock);
   if (!info.queue) {
-    goto alloc_fail;
+    goto fail;
   }
   info.disk = alloc_disk(1);
   if (!info.disk) {
-    goto alloc_fail;
+    goto fail;
   }
-  info.major = register_blkdev(0, "ramdisk");
+  info.major = register_blkdev(0, "ram_disk");
+  if (info.major < 0) {
+    goto fail;
+  }
   info.disk->major = info.major;
   info.disk->first_minor = 0;
   info.disk->fops = &ram_disk_ops;
@@ -123,7 +127,7 @@ static int __init ram_disk_init(void) {
 
   return 0;
 
-alloc_fail:
+fail:
   ram_disk_free();
   return -ENOMEM;
 }
@@ -131,7 +135,7 @@ alloc_fail:
 static void __exit ram_disk_exit(void) {
   printk(KERN_INFO "Unloading RAMDisk module\n");
   ram_disk_free();
-  unregister_blkdev(info.major, "ramdisk");
+  unregister_blkdev(info.major, "ram_disk");
 }
 
 module_init(ram_disk_init);

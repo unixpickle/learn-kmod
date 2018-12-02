@@ -20,6 +20,7 @@ struct ram_disk_info {
   size_t size;
   struct request_queue* queue;
   struct gendisk* disk;
+  int major;
 };
 
 static void ram_disk_request(struct request_queue* queue);
@@ -111,7 +112,8 @@ static int __init ram_disk_init(void) {
   if (!info.disk) {
     goto alloc_fail;
   }
-  info.disk->major = 259;  // "blkext"
+  info.major = register_blkdev(0, "ramdisk");
+  info.disk->major = info.major;
   info.disk->first_minor = 0;
   info.disk->fops = &ram_disk_ops;
   info.disk->queue = info.queue;
@@ -129,6 +131,7 @@ alloc_fail:
 static void __exit ram_disk_exit(void) {
   printk(KERN_INFO "Unloading RAMDisk module\n");
   ram_disk_free();
+  unregister_blkdev(info.major, "ramdisk");
 }
 
 module_init(ram_disk_init);

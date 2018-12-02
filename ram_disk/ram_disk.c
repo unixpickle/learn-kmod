@@ -18,12 +18,12 @@ struct ram_disk_info {
   spinlock_t lock;
   unsigned char* data;
   size_t size;
-  int num_users;
   struct request_queue* queue;
   struct gendisk* disk;
 };
 
 static void ram_disk_request(struct request_queue* queue);
+static void ram_disk_page_op(struct request* req, struct bio_vec* bvec);
 static int ram_disk_open(struct block_device* dev, fmode_t mode);
 static void ram_disk_release(struct gendisk* disk, fmode_t mode);
 static int ram_disk_ioctl(struct block_device* dev,
@@ -41,10 +41,33 @@ static struct block_device_operations ram_disk_ops = {
     .media_changed = ram_disk_media_changed,
 };
 
-static void ram_disk_request(struct request_queue* queue) {}
+static void ram_disk_request(struct request_queue* queue) {
+  struct request* req;
+  while ((req = blk_fetch_request(queue))) {
+    struct bio_vec bvec;
+    struct req_iterator iter;
+    rq_for_each_segment(bvec, req, iter) ram_disk_page_op(req, &bvec);
+    blk_end_request_all(req, 0);
+  }
+}
+
+static void ram_disk_page_op(struct request* req, struct bio_vec* bvec) {
+  size_t start = (size_t)bvec->bv_offset + (size_t)req->__sector * 512;
+  if (start + (size_t)bvec->bv_len) {
+    printk(KERN_INFO, "Out of bounds RAM disk access!");
+    return;
+  }
+  char* page_addr = kmap_atomic(bvec->bv_page);
+  if (rq_data_dir(req) == WRITE) {
+    memcpy(&info.data[start], page_addr, bvec->bv_len);
+  } else {
+    memcpy(page_addr, &info.data[start], bvec->bv_len);
+  }
+  kunmap_atomic(page_addr);
+}
 
 static int ram_disk_open(struct block_device* dev, fmode_t mode) {
-  return -EBADF;
+  return 0;
 }
 
 static void ram_disk_release(struct gendisk* disk, fmode_t mode) {}
@@ -53,7 +76,7 @@ static int ram_disk_ioctl(struct block_device* dev,
                           fmode_t mode,
                           unsigned int x,
                           unsigned long y) {
-  return -EBADF;
+  return -ENOTTY;
 }
 
 static int ram_disk_media_changed(struct gendisk* disk) {

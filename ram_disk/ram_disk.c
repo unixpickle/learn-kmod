@@ -24,7 +24,9 @@ struct ram_disk_info {
 };
 
 static void ram_disk_request(struct request_queue* queue);
-static void ram_disk_page_op(struct request* req, struct bio_vec* bvec);
+static void ram_disk_page_op(struct request* req,
+                             struct bio_vec* bvec,
+                             struct req_iterator* ri);
 static int ram_disk_open(struct block_device* dev, fmode_t mode);
 static void ram_disk_release(struct gendisk* disk, fmode_t mode);
 static int ram_disk_ioctl(struct block_device* dev,
@@ -46,15 +48,19 @@ static struct block_device_operations ram_disk_ops = {
 static void ram_disk_request(struct request_queue* queue) {
   struct request* req;
   while ((req = blk_fetch_request(queue))) {
-    struct bio_vec bvec;
-    struct req_iterator iter;
-    rq_for_each_segment(bvec, req, iter) ram_disk_page_op(req, &bvec);
+    if (!blk_rq_is_passthrough(req)) {
+      struct bio_vec bvec;
+      struct req_iterator iter;
+      rq_for_each_segment(bvec, req, iter) ram_disk_page_op(req, &bvec, &iter);
+    }
     __blk_end_request_all(req, 0);
   }
 }
 
-static void ram_disk_page_op(struct request* req, struct bio_vec* bvec) {
-  size_t start = (size_t)bvec->bv_offset + (size_t)req->__sector * 512;
+static void ram_disk_page_op(struct request* req,
+                             struct bio_vec* bvec,
+                             struct req_iterator* ri) {
+  size_t start = (size_t)ri->iter.bi_sector * 512;
   if (start + (size_t)bvec->bv_len > info.size) {
     printk(KERN_INFO, "Out of bounds RAM disk access!");
     return;

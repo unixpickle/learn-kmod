@@ -1,6 +1,3 @@
-// Taken from
-// https://blog.sourcerer.io/writing-a-simple-linux-kernel-module-d9dc3762c234
-
 #include <asm-generic/errno-base.h>
 #include <linux/blkdev.h>
 #include <linux/genhd.h>

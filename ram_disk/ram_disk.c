@@ -49,7 +49,7 @@ static void ram_disk_request(struct request_queue* queue) {
     struct bio_vec bvec;
     struct req_iterator iter;
     rq_for_each_segment(bvec, req, iter) ram_disk_page_op(req, &bvec);
-    blk_end_request_all(req, 0);
+    __blk_end_request_all(req, 0);
   }
 }
 

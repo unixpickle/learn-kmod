@@ -41,7 +41,6 @@ static struct block_device_operations ram_disk_ops = {
     .open = ram_disk_open,
     .release = ram_disk_release,
     .ioctl = ram_disk_ioctl,
-    .media_changed = ram_disk_media_changed,
     .owner = THIS_MODULE,
 };
 
@@ -85,10 +84,6 @@ static int ram_disk_ioctl(struct block_device* dev,
                           unsigned int x,
                           unsigned long y) {
   return -ENOTTY;
-}
-
-static int ram_disk_media_changed(struct gendisk* disk) {
-  return 0;
 }
 
 static void ram_disk_free(void) {

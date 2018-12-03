@@ -33,7 +33,6 @@ static int ram_disk_ioctl(struct block_device* dev,
                           fmode_t mode,
                           unsigned int x,
                           unsigned long y);
-static int ram_disk_media_changed(struct gendisk* disk);
 static void ram_disk_free(void);
 
 static struct ram_disk_info info;

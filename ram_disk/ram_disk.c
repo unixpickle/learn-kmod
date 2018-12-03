@@ -67,9 +67,9 @@ static void ram_disk_page_op(struct request* req,
   }
   char* page_addr = kmap_atomic(bvec->bv_page);
   if (rq_data_dir(req) == WRITE) {
-    memcpy(&info.data[start], page_addr, bvec->bv_len);
+    memcpy(&info.data[start], &page_addr[bvec->bv_offset], bvec->bv_len);
   } else {
-    memcpy(page_addr, &info.data[start], bvec->bv_len);
+    memcpy(&page_addr[bvec->bv_offset], &info.data[start], bvec->bv_len);
   }
   kunmap_atomic(page_addr);
 }

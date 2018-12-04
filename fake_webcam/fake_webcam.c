@@ -323,6 +323,7 @@ static int __init fw_init(void) {
   fw_info.dev->ioctl_ops = &fw_ioctl_ops;
   fw_info.dev->lock = &fw_info.ioctl_lock;
   fw_info.dev->queue = &fw_info.queue;
+  fw_info.dev->tvnorms = fw_fmt_std;
 
   res = video_register_device_no_warn(fw_info.dev, VFL_TYPE_GRABBER, -1);
   if (res < 0) {

@@ -138,42 +138,6 @@ static int fw_vidioc_s_input(struct file* f, void* priv, unsigned int i) {
   return 0;
 }
 
-static int fw_vidioc_reqbufs(struct file* f,
-                             void* priv,
-                             struct v4l2_requestbuffers* req) {
-  return vb2_reqbufs(&fw_info.queue, req);
-}
-
-static int fw_vidioc_querybuf(struct file* f,
-                              void* priv,
-                              struct v4l2_buffer* buffer) {
-  return vb2_querybuf(&fw_info.queue, buffer);
-}
-
-static int fw_vidioc_qbuf(struct file* f,
-                          void* priv,
-                          struct v4l2_buffer* buffer) {
-  return vb2_qbuf(&fw_info.queue, buffer);
-}
-
-static int fw_vidioc_dqbuf(struct file* f,
-                           void* priv,
-                           struct v4l2_buffer* buffer) {
-  return vb2_dqbuf(&fw_info.queue, buffer, f->f_flags & O_NONBLOCK);
-}
-
-static int fw_vidioc_streamon(struct file* f,
-                              void* priv,
-                              enum v4l2_buf_type t) {
-  return vb2_streamon(&fw_info.queue, t);
-}
-
-static int fw_vidioc_streamoff(struct file* f,
-                               void* priv,
-                               enum v4l2_buf_type t) {
-  return vb2_streamoff(&fw_info.queue, t);
-}
-
 static struct v4l2_ioctl_ops fw_ioctl_ops = {
     // Capabilities and formats.
     .vidioc_querycap = fw_vidioc_querycap,
@@ -188,21 +152,13 @@ static struct v4l2_ioctl_ops fw_ioctl_ops = {
     .vidioc_s_input = fw_vidioc_s_input,
 
     // Buffer manipulation.
-    .vidioc_reqbufs = fw_vidioc_reqbufs,
-    .vidioc_querybuf = fw_vidioc_querybuf,
-    .vidioc_qbuf = fw_vidioc_qbuf,
-    .vidioc_dqbuf = fw_vidioc_dqbuf,
-    .vidioc_streamon = fw_vidioc_streamon,
-    .vidioc_streamoff = fw_vidioc_streamoff,
+    .vidioc_reqbufs = vb2_ioctl_reqbufs,
+    .vidioc_querybuf = vb2_ioctl_querybuf,
+    .vidioc_qbuf = vb2_ioctl_qbuf,
+    .vidioc_dqbuf = vb2_ioctl_dqbuf,
+    .vidioc_streamon = vb2_ioctl_streamon,
+    .vidioc_streamoff = vb2_ioctl_streamoff,
 };
-
-// Device operations
-
-static void fw_video_device_release(struct video_device* dev) {
-  video_device_release(dev);
-  // TODO: see if this will be necessary.
-  // media_entity_cleanup(&dev->entity);
-}
 
 // Video buffer operations
 
@@ -315,7 +271,7 @@ static int __init fw_init(void) {
     res = -ENOMEM;
     goto fail_unregister;
   }
-  fw_info.dev->release = fw_video_device_release;
+  fw_info.dev->release = video_device_release;
   fw_info.dev->v4l2_dev = &fw_info.parent_dev;
   strncpy(fw_info.dev->name, "Fake Webcam", sizeof(fw_info.dev->name));
   fw_info.dev->vfl_dir = VFL_DIR_RX;
@@ -344,7 +300,6 @@ fail:
 static void __exit fw_exit(void) {
   video_unregister_device(fw_info.dev);
   v4l2_device_unregister(&fw_info.parent_dev);
-  vb2_queue_release(&fw_info.queue);
 }
 
 module_init(fw_init);

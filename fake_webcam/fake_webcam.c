@@ -188,6 +188,8 @@ static void fw_fill_buffer(struct vb2_buffer* buffer) {
   for (i = 0; i < (fw_fmt_width * fw_fmt_height * fw_fmt_depth) / 8; ++i) {
     data[i] = (i * 13) % 255;
   }
+  vb2_set_plane_payload(buffer, 0,
+                        (fw_fmt_width * fw_fmt_height * fw_fmt_depth) / 8);
 }
 
 static int fw_ship_buffer_thread(void* buf_void) {

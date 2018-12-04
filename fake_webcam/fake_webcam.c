@@ -45,7 +45,7 @@ static struct v4l2_file_operations fw_fops = {
     .owner = THIS_MODULE,
     .unlocked_ioctl = video_ioctl2,
     .open = v4l2_fh_open,
-    .release = v4l2_fh_release,
+    .release = v4l2_fh_release,  // TODO: need to release the queue here?
     .read = fw_read,
     .poll = fw_poll,
     .mmap = fw_mmap,
@@ -53,8 +53,126 @@ static struct v4l2_file_operations fw_fops = {
 
 // IOCTL operations
 
-static struct v4l2_ioctl_ops fw_ioctl_ops = {
+static const char* fw_fmt_description = "4:2:2, packed, YUYV";
+static const u32 fw_fmt_pixelformat = V4L2_PIX_FMT_YUYV;
+static const int fw_fmt_depth = 16;
+static const int fw_fmt_width = 640;
+static const int fw_fmt_height = 480;
+static const int fw_fmt_field = V4L2_FIELD_INTERLACED;
+static const int fw_fmt_colorspace = V4L2_COLORSPACE_SMPTE170M;
+static const int fw_fmt_std = V4L2_STD_525_60;
 
+static int fw_vidioc_querycap(struct file* f,
+                              void* priv,
+                              struct v4l2_capability* cap) {
+  strncpy(cap->driver, "fake_webcam", sizeof(cap->driver));
+  strncpy(cap->card, "fake_webcam", sizeof(cap->card));
+  strncpy(cap->bus_info, "fake_webcam", sizeof(cap->bus_info));
+  cap->device_caps =
+      V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING | V4L2_CAP_READWRITE;
+  cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
+  return 0;
+}
+
+static int fw_vidioc_enum_fmt_vid_cap(struct file* f,
+                                      void* priv,
+                                      struct v4l2_fmtdesc* fmt) {
+  if (f->index) {
+    return -EINVAL;
+  }
+  strncpy(fmt->description, fw_fmt_description, sizeof(f->description));
+  fmt->pixelformat = fw_fmt_pixelformat;
+}
+
+static int fw_vidioc_g_fmt_vid_cap(struct file* f,
+                                   void* priv,
+                                   struct v4l2_format* fmt) {
+  fmt->fmt.pix.width = fw_fmt_width;
+  fmt->fmt.pix.height = fw_fmt_height;
+  fmt->fmt.pix.field = fw_fmt_field;
+  fmt->fmt.pix.pixelformat = fw_fmt_pixelformat;
+  fmt->fmt.pix.bytesperline = (fw_fmt_width * fw_fmt_depth) / 8;
+  fmt->fmt.pix.sizeimage = fw_fmt_height * fmt->fmt.pix.bytesperline;
+  fmt->fmt.pix.colorspace = fw_fmt_colorspace;
+  return 0;
+}
+
+static int fw_vidioc_try_fmt_vid_cap(struct file* f,
+                                     void* priv,
+                                     struct v4l2_format* fmt) {
+  if (fmt->fmt.pix.pixelformat != fw_fmt_pixelformat) {
+    return -EINVAL;
+  }
+  return fw_vidioc_g_fmt_vid_cap(f, priv, f);
+}
+
+static int vidioc_s_std(struct file* f, void* priv, v4l2_std_id* id) {
+  return 0;
+}
+
+static int vidioc_enum_input(struct file* f,
+                             void* priv,
+                             struct v4l2_input* input) {
+  if (inp->index) {
+    return -EINVAL;
+  }
+  inp->type = V4L2_INPUT_TYPE_CAMERA;
+  inp->std = fw_fmt_std;
+  strncpy(inp->name, "Fake Webcam", sizeof(inp->name));
+  return 0;
+}
+
+static int vidioc_g_input(struct file* f, void* priv, unsigned int* i) {
+  *i = 0;
+  return 0;
+}
+
+static int vidioc_s_input(struct file* f, void* priv, unsigned int i) {
+  if (i) {
+    return -EINVAL;
+  }
+  return 0;
+}
+
+static int vidioc_reqbufs(struct file* f,
+                          void* priv,
+                          struct v4l2_requestbuffers* req) {
+  return vb2_reqbufs(&fw_info.queue, req);
+}
+
+static int vidioc_querybuf(struct file* f,
+                           void* priv,
+                           struct v4l2_buffer* buffer) {
+  return vb2_querybuf(&fw_info.queue, buffer);
+}
+
+static int vidioc_qbuf(struct file* f, void* priv, struct v4l2_buffer* buffer) {
+  return vb2_qbuf(&fw_info.queue, buffer);
+}
+
+static int vidioc_dqbuf(struct file* f,
+                        void* priv,
+                        struct v4l2_buffer* buffer) {
+  return vb2_dqbuf(&dev->vb_vidq, buffer);
+}
+
+static struct v4l2_ioctl_ops fw_ioctl_ops = {
+    // Capabilities and formats.
+    .vidioc_querycap = fw_vidioc_querycap,
+    .vidioc_enum_fmt_vid_cap = fw_vidioc_enum_fmt_vid_cap,
+    .vidioc_g_fmt_vid_cap = fw_vidioc_g_fmt_vid_cap,
+    .vidioc_s_fmt_vid_cap = fw_vidioc_try_fmt_vid_cap,
+    .vidioc_try_fmt_vid_cap = fw_vidioc_try_fmt_vid_cap,
+    .vidioc_s_std = fw_vidioc_s_std,
+    .vidioc_enum_input = fw_vidioc_enum_input,
+    .vidioc_g_input = fw_vidioc_g_input,
+    .vidioc_s_input = fw_vidioc_s_input,
+
+    // Buffer manipulation.
+    .vidioc_reqbufs = fw_vidioc_reqbufs,
+    .vidioc_querybuf = fw_vidioc_querybuf,
+    .vidioc_qbuf = fw_vidioc_qbuf,
+    .vidioc_dqbuf = fw_vidioc_dqbuf,
 };
 
 // Device operations

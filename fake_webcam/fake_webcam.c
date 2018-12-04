@@ -283,6 +283,7 @@ static int fw_ctrl_open(struct inode* inode, struct file* f) {
   if (!ctrl) {
     return -ENOMEM;
   }
+  ctrl->cur_written = 0;
   ctrl->write_buffer = vmalloc(fw_fmt_bytes);
   if (!ctrl->write_buffer) {
     vfree(ctrl);

@@ -240,6 +240,15 @@ static u64 fw_get_nanotime(void) {
   return (u64)val.tv_sec * 1000000000 + (u64)val.tv_usec * 1000;
 }
 
+static void fw_fill_buffer(struct vb2_buffer* buffer) {
+  int i;
+  char* data = (char*)vb2_plane_vaddr(buffer, 0);
+  // For now, just use "noise".
+  for (i = 0; i < (fw_fmt_width * fw_fmt_height * fw_fmt_depth) / 8; ++i) {
+    data[i] = (i * 13) % 255;
+  }
+}
+
 static int fw_ship_buffer_thread(void* buf_void) {
   struct vb2_buffer* buffer = (struct vb2_buffer*)buf_void;
 
@@ -249,6 +258,7 @@ static int fw_ship_buffer_thread(void* buf_void) {
         nsecs_to_jiffies64(buffer->timestamp - nanotime));
   }
 
+  fw_fill_buffer(buffer);
   vb2_buffer_done(buffer, VB2_BUF_STATE_DONE);
 
   do_exit(0);

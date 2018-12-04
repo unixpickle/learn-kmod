@@ -1,6 +1,8 @@
 # Overview
 
-This will be a fake webcam driver. Ideally, it will allow a user-space process to decide the images "captured" by the webcam.
+This is driver that pretends to be a webcam, but really just shows a buffer that is controlled by a user-space program.
+
+User-space programs can update the picture by writing an RGB image to `/dev/fake_webcam`. For an example, see [bouncy_ball.c](bouncy_ball.c).
 
 # Installing
 

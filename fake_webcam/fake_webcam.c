@@ -102,16 +102,15 @@ static int fw_vidioc_g_fmt_vid_cap(struct file* f,
   return 0;
 }
 
-static int fw_vidioc_try_fmt_vid_cap(struct file* f,
-                                     void* priv,
-                                     struct v4l2_format* fmt) {
-  if (fmt->fmt.pix.pixelformat != fw_fmt_pixelformat) {
-    return -EINVAL;
-  }
-  return fw_vidioc_g_fmt_vid_cap(f, priv, fmt);
+static int fw_vidioc_g_std(struct file* f, void* priv, v4l2_std_id* id) {
+  *id = fw_fmt_std;
+  return 0;
 }
 
 static int fw_vidioc_s_std(struct file* f, void* priv, v4l2_std_id id) {
+  if (id != fw_fmt_std) {
+    return -EINVAL;
+  }
   return 0;
 }
 
@@ -180,8 +179,9 @@ static struct v4l2_ioctl_ops fw_ioctl_ops = {
     .vidioc_querycap = fw_vidioc_querycap,
     .vidioc_enum_fmt_vid_cap = fw_vidioc_enum_fmt_vid_cap,
     .vidioc_g_fmt_vid_cap = fw_vidioc_g_fmt_vid_cap,
-    .vidioc_s_fmt_vid_cap = fw_vidioc_try_fmt_vid_cap,
-    .vidioc_try_fmt_vid_cap = fw_vidioc_try_fmt_vid_cap,
+    .vidioc_s_fmt_vid_cap = fw_vidioc_g_fmt_vid_cap,
+    .vidioc_try_fmt_vid_cap = fw_vidioc_g_fmt_vid_cap,
+    .vidioc_g_std = fw_vidioc_g_std,
     .vidioc_s_std = fw_vidioc_s_std,
     .vidioc_enum_input = fw_vidioc_enum_input,
     .vidioc_g_input = fw_vidioc_g_input,

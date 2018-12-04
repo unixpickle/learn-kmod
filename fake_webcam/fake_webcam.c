@@ -1,8 +1,10 @@
+#include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/string.h>
+#include <linux/uaccess.h>
 #include <media/v4l2-dev.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
@@ -14,6 +16,8 @@ MODULE_AUTHOR("Alex Nichol");
 MODULE_DESCRIPTION("A virtual webcam driver.");
 MODULE_VERSION("0.01");
 
+#define DRIVER_NAME "fake_webcam"
+
 struct fw_info {
   struct mutex ioctl_lock;
 
@@ -21,9 +25,16 @@ struct fw_info {
   struct v4l2_device parent_dev;
   struct vb2_queue queue;
 
-  // Tracking frame timing.
+  // Used for frame streaming.
+  struct mutex frame_buffer_lock;
+  char* frame_buffer;
   int is_first_frame;
   u64 next_time;
+
+  // Used for the control interface.
+  int ctrl_major;
+  struct class* ctrl_class;
+  struct device* ctrl_device;
 };
 
 static struct fw_info fw_info;
@@ -50,13 +61,14 @@ static const int fw_fmt_height = 720;
 static const int fw_fmt_field = V4L2_FIELD_NONE;
 static const int fw_fmt_colorspace = V4L2_COLORSPACE_SRGB;
 static const int fw_fmt_std = V4L2_STD_525_60;
+static const int fw_fmt_bytes = (1280 * 720 * 3);
 
 static int fw_vidioc_querycap(struct file* f,
                               void* priv,
                               struct v4l2_capability* cap) {
-  strncpy(cap->driver, "fake_webcam", sizeof(cap->driver));
-  strncpy(cap->card, "fake_webcam", sizeof(cap->card));
-  strncpy(cap->bus_info, "fake_webcam", sizeof(cap->bus_info));
+  strncpy(cap->driver, DRIVER_NAME, sizeof(cap->driver));
+  strncpy(cap->card, DRIVER_NAME, sizeof(cap->card));
+  strncpy(cap->bus_info, DRIVER_NAME, sizeof(cap->bus_info));
   cap->device_caps =
       V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING | V4L2_CAP_READWRITE;
   cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
@@ -110,7 +122,7 @@ static int fw_vidioc_g_fmt_vid_cap(struct file* f,
   fmt->fmt.pix.field = fw_fmt_field;
   fmt->fmt.pix.pixelformat = fw_fmt_pixelformat;
   fmt->fmt.pix.bytesperline = (fw_fmt_width * fw_fmt_depth) / 8;
-  fmt->fmt.pix.sizeimage = fw_fmt_height * fmt->fmt.pix.bytesperline;
+  fmt->fmt.pix.sizeimage = fw_fmt_bytes;
   fmt->fmt.pix.colorspace = fw_fmt_colorspace;
   return 0;
 }
@@ -186,7 +198,7 @@ static int fw_vb2_queue_setup(struct vb2_queue* queue,
                               struct device* alloc_devs[]) {
   *nbuffers = 4;
   *nplanes = 1;
-  sizes[0] = (fw_fmt_width * fw_fmt_height * fw_fmt_depth) / 8;
+  sizes[0] = fw_fmt_bytes;
   return 0;
 }
 
@@ -214,14 +226,11 @@ static u64 fw_get_nanotime(void) {
 }
 
 static void fw_fill_buffer(struct vb2_buffer* buffer) {
-  int i;
   char* data = (char*)vb2_plane_vaddr(buffer, 0);
-  // For now, just use "noise".
-  for (i = 0; i < (fw_fmt_width * fw_fmt_height * fw_fmt_depth) / 8; ++i) {
-    data[i] = (i * 13) % 255;
-  }
-  vb2_set_plane_payload(buffer, 0,
-                        (fw_fmt_width * fw_fmt_height * fw_fmt_depth) / 8);
+  mutex_lock(&fw_info.frame_buffer_lock);
+  memcpy(data, fw_info.frame_buffer, fw_fmt_bytes);
+  mutex_unlock(&fw_info.frame_buffer_lock);
+  vb2_set_plane_payload(buffer, 0, fw_fmt_bytes);
 }
 
 static int fw_ship_buffer_thread(void* buf_void) {
@@ -262,6 +271,109 @@ static struct vb2_ops fw_vb2_ops = {
     .buf_queue = fw_vb2_buf_queue,
 };
 
+// User-space control device.
+
+typedef struct {
+  unsigned char* write_buffer;
+  size_t cur_written;
+} fw_ctrl_t;
+
+static int fw_ctrl_open(struct inode* inode, struct file* f) {
+  fw_ctrl_t* ctrl = vmalloc(sizeof(fw_ctrl_t));
+  if (!ctrl) {
+    return -ENOMEM;
+  }
+  ctrl->write_buffer = vmalloc(fw_fmt_bytes);
+  if (!ctrl->write_buffer) {
+    vfree(ctrl);
+    return -ENOMEM;
+  }
+  f->private_data = ctrl;
+  return 0;
+}
+
+static int fw_ctrl_release(struct inode* inode, struct file* f) {
+  fw_ctrl_t* ctrl = (fw_ctrl_t*)f->private_data;
+  vfree(ctrl->write_buffer);
+  vfree(ctrl);
+  return 0;
+}
+
+static ssize_t fw_ctrl_read(struct file* f,
+                            char __user* data,
+                            size_t size,
+                            loff_t* off) {
+  return 0;
+}
+
+static ssize_t fw_ctrl_write(struct file* f,
+                             const char __user* data,
+                             size_t size,
+                             loff_t* off) {
+  size_t i;
+  fw_ctrl_t* ctrl = (fw_ctrl_t*)f->private_data;
+  char* local_data = (char*)vmalloc(size);
+  if (!local_data) {
+    return -ENOMEM;
+  }
+  copy_from_user(local_data, data, size);
+  for (i = 0; i < size; ++i) {
+    ctrl->write_buffer[ctrl->cur_written++] = local_data[i];
+    if (ctrl->cur_written == (size_t)fw_fmt_bytes) {
+      mutex_lock(&fw_info.frame_buffer_lock);
+      memcpy(fw_info.frame_buffer, ctrl->write_buffer, fw_fmt_bytes);
+      mutex_unlock(&fw_info.frame_buffer_lock);
+      ctrl->cur_written = 0;
+    }
+  }
+  vfree(local_data);
+  return size;
+}
+
+static struct file_operations fw_ctrl_fops = {
+    .open = fw_ctrl_open,
+    .release = fw_ctrl_release,
+    .read = fw_ctrl_read,
+    .write = fw_ctrl_write,
+};
+
+static int fw_ctrl_setup(void) {
+  int res;
+
+  fw_info.ctrl_major = register_chrdev(0, DRIVER_NAME, &fw_ctrl_fops);
+  if (fw_info.ctrl_major < 0) {
+    return fw_info.ctrl_major;
+  }
+
+  fw_info.ctrl_class = class_create(THIS_MODULE, DRIVER_NAME);
+  if (IS_ERR(fw_info.ctrl_class)) {
+    res = PTR_ERR(fw_info.ctrl_class);
+    goto fail_unregister;
+  }
+
+  fw_info.ctrl_device =
+      device_create(fw_info.ctrl_class, NULL, MKDEV(fw_info.ctrl_major, 0),
+                    NULL, DRIVER_NAME);
+  if (IS_ERR(fw_info.ctrl_device)) {
+    res = PTR_ERR(fw_info.ctrl_device);
+    goto fail_unclass;
+  }
+
+  return 0;
+
+fail_unclass:
+  class_destroy(fw_info.ctrl_class);
+fail_unregister:
+  unregister_chrdev(fw_info.ctrl_major, DRIVER_NAME);
+  return res;
+}
+
+static void fw_ctrl_destroy(void) {
+  device_destroy(fw_info.ctrl_class, MKDEV(fw_info.ctrl_major, 0));
+  class_destroy(fw_info.ctrl_class);
+  unregister_chrdev(fw_info.ctrl_major, DRIVER_NAME);
+}
+
 // Module lifecycle
 
 static int __init fw_init(void) {
@@ -269,12 +381,23 @@ static int __init fw_init(void) {
 
   memset(&fw_info, 0, sizeof(fw_info));
   mutex_init(&fw_info.ioctl_lock);
+  mutex_init(&fw_info.frame_buffer_lock);
 
-  strncpy(fw_info.parent_dev.name, "fake_webcam",
+  fw_info.frame_buffer = (char*)vmalloc(fw_fmt_bytes);
+  if (!fw_info.frame_buffer) {
+    return -ENOMEM;
+  }
+
+  res = fw_ctrl_setup();
+  if (res) {
+    goto fail;
+  }
+
+  strncpy(fw_info.parent_dev.name, DRIVER_NAME,
           sizeof(fw_info.parent_dev.name));
   res = v4l2_device_register(NULL, &fw_info.parent_dev);
   if (res) {
-    goto fail;
+    goto fail_destroy_ctrl;
   }
 
   fw_info.queue.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -312,13 +435,18 @@ fail_device_free:
 fail_unregister:
   v4l2_device_unregister(&fw_info.parent_dev);
   vb2_queue_release(&fw_info.queue);
+fail_destroy_ctrl:
+  fw_ctrl_destroy();
 fail:
+  vfree(fw_info.frame_buffer);
   return res;
 }
 
 static void __exit fw_exit(void) {
   video_unregister_device(fw_info.dev);
   v4l2_device_unregister(&fw_info.parent_dev);
+  vfree(fw_info.frame_buffer);
+  fw_ctrl_destroy();
 }
 
 module_init(fw_init);

@@ -25,4 +25,5 @@ sudo insmod build/fake_webcam.ko
 
  * https://elixir.bootlin.com/linux/v3.4/source/drivers/media/video/vivi.c
  * https://linuxtv.org/downloads/v4l-dvb-apis/kapi/v4l2-dev.html
+ * http://derekmolloy.ie/writing-a-linux-kernel-module-part-2-a-character-device/#Character_Device_Drivers
  * Linux headers

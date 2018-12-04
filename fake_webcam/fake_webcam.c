@@ -63,6 +63,34 @@ static int fw_vidioc_querycap(struct file* f,
   return 0;
 }
 
+static int fw_vidioc_enum_framesizes(struct file* file,
+                                     void* fh,
+                                     struct v4l2_frmsizeenum* frm) {
+  if (frm->index) {
+    return -EINVAL;
+  }
+  frm->pixel_format = fw_fmt_pixelformat;
+  frm->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+  frm->discrete.width = fw_fmt_width;
+  frm->discrete.height = fw_fmt_height;
+  return 0;
+}
+
+static int fw_vidioc_enum_frameintervals(struct file* f,
+                                         void* priv,
+                                         struct v4l2_frmivalenum* frm) {
+  if (frm->index) {
+    return -EINVAL;
+  }
+  frm->pixel_format = fw_fmt_pixelformat;
+  frm->width = fw_fmt_width;
+  frm->height = fw_fmt_height;
+  frm->type = V4L2_FRMIVAL_TYPE_DISCRETE;
+  frm->discrete.numerator = 1;
+  frm->discrete.denominator = 60;
+  return 0;
+}
+
 static int fw_vidioc_enum_fmt_vid_cap(struct file* f,
                                       void* priv,
                                       struct v4l2_fmtdesc* fmt) {
@@ -84,18 +112,6 @@ static int fw_vidioc_g_fmt_vid_cap(struct file* f,
   fmt->fmt.pix.bytesperline = (fw_fmt_width * fw_fmt_depth) / 8;
   fmt->fmt.pix.sizeimage = fw_fmt_height * fmt->fmt.pix.bytesperline;
   fmt->fmt.pix.colorspace = fw_fmt_colorspace;
-  return 0;
-}
-
-static int fw_vidioc_g_std(struct file* f, void* priv, v4l2_std_id* id) {
-  *id = fw_fmt_std;
-  return 0;
-}
-
-static int fw_vidioc_s_std(struct file* f, void* priv, v4l2_std_id id) {
-  if (id != fw_fmt_std) {
-    return -EINVAL;
-  }
   return 0;
 }
 
@@ -123,18 +139,34 @@ static int fw_vidioc_s_input(struct file* f, void* priv, unsigned int i) {
   return 0;
 }
 
+static int fw_vidioc_g_parm(struct file* file,
+                            void* fh,
+                            struct v4l2_streamparm* sp) {
+  if (sp->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+    return -EINVAL;
+
+  sp->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
+  sp->parm.capture.readbuffers = 4;
+  sp->parm.capture.extendedmode = 0;
+  sp->parm.capture.timeperframe.numerator = 1;
+  sp->parm.capture.timeperframe.denominator = 60;
+  return 0;
+}
+
 static struct v4l2_ioctl_ops fw_ioctl_ops = {
     // Capabilities and formats.
     .vidioc_querycap = fw_vidioc_querycap,
+    .vidioc_enum_framesizes = fw_vidioc_enum_framesizes,
+    .vidioc_enum_frameintervals = fw_vidioc_enum_frameintervals,
     .vidioc_enum_fmt_vid_cap = fw_vidioc_enum_fmt_vid_cap,
     .vidioc_g_fmt_vid_cap = fw_vidioc_g_fmt_vid_cap,
     .vidioc_s_fmt_vid_cap = fw_vidioc_g_fmt_vid_cap,
     .vidioc_try_fmt_vid_cap = fw_vidioc_g_fmt_vid_cap,
-    .vidioc_g_std = fw_vidioc_g_std,
-    .vidioc_s_std = fw_vidioc_s_std,
     .vidioc_enum_input = fw_vidioc_enum_input,
     .vidioc_g_input = fw_vidioc_g_input,
     .vidioc_s_input = fw_vidioc_s_input,
+    .vidioc_g_parm = fw_vidioc_g_parm,
+    .vidioc_s_parm = fw_vidioc_g_parm,
 
     // Buffer manipulation.
     .vidioc_reqbufs = vb2_ioctl_reqbufs,

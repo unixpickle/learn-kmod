@@ -156,6 +156,14 @@ static int vidioc_dqbuf(struct file* f,
   return vb2_dqbuf(&dev->vb_vidq, buffer);
 }
 
+static int vidioc_streamon(struct file* f, void* priv, enum v4l2_buf_type t) {
+  return vb2_streamon(&fw_info.queue, t);
+}
+
+static int vidioc_streamoff(struct file* f, void* priv, enum v4l2_buf_type t) {
+  return vb2_streamoff(&fw_info.queue, t);
+}
+
 static struct v4l2_ioctl_ops fw_ioctl_ops = {
     // Capabilities and formats.
     .vidioc_querycap = fw_vidioc_querycap,
@@ -173,6 +181,8 @@ static struct v4l2_ioctl_ops fw_ioctl_ops = {
     .vidioc_querybuf = fw_vidioc_querybuf,
     .vidioc_qbuf = fw_vidioc_qbuf,
     .vidioc_dqbuf = fw_vidioc_dqbuf,
+    .vidioc_streamon = vidioc_streamon,
+    .vidioc_streamoff = vidioc_streamoff,
 };
 
 // Device operations

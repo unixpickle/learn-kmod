@@ -307,7 +307,6 @@ static int __init fw_init(void) {
   fw_info.queue.dev = fw_info.parent_dev.dev;
   fw_info.queue.ops = &fw_vb2_ops;
   fw_info.queue.mem_ops = &vb2_vmalloc_memops;
-  fw_info.queue.buf_struct_size = sizeof(struct vb2_buffer);
   vb2_queue_init(&fw_info.queue);
 
   fw_info.dev = video_device_alloc();

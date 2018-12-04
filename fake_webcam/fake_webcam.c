@@ -30,29 +30,14 @@ static struct fw_info fw_info;
 
 // File operations
 
-static ssize_t fw_read(struct file* f,
-                       char __user* data,
-                       size_t size,
-                       loff_t* off) {
-  return vb2_read(&fw_info.queue, data, size, off, f->f_flags & O_NONBLOCK);
-}
-
-static unsigned int fw_poll(struct file* f, struct poll_table_struct* table) {
-  return vb2_poll(&fw_info.queue, f, table);
-}
-
-static int fw_mmap(struct file* f, struct vm_area_struct* vma) {
-  return vb2_mmap(&fw_info.queue, vma);
-}
-
 static struct v4l2_file_operations fw_fops = {
     .owner = THIS_MODULE,
     .unlocked_ioctl = video_ioctl2,
     .open = v4l2_fh_open,
-    .release = v4l2_fh_release,  // TODO: need to release the queue here?
-    .read = fw_read,
-    .poll = fw_poll,
-    .mmap = fw_mmap,
+    .release = vb2_fop_release,
+    .read = vb2_fop_read,
+    .poll = vb2_fop_poll,
+    .mmap = vb2_fop_mmap,
 };
 
 // IOCTL operations

@@ -18,6 +18,8 @@ MODULE_VERSION("0.01");
 
 #define DRIVER_NAME "fake_webcam"
 
+// Global state.
+
 struct fw_info {
   struct mutex ioctl_lock;
 
@@ -39,6 +41,18 @@ struct fw_info {
 
 static struct fw_info fw_info;
 
+// Video format specification
+
+static const char* fw_fmt_description = "RGB24";
+static const u32 fw_fmt_pixelformat = V4L2_PIX_FMT_RGB24;
+static const int fw_fmt_depth = 24;
+static const int fw_fmt_width = 1280;
+static const int fw_fmt_height = 720;
+static const int fw_fmt_field = V4L2_FIELD_NONE;
+static const int fw_fmt_colorspace = V4L2_COLORSPACE_SRGB;
+static const int fw_fmt_std = V4L2_STD_525_60;
+static const int fw_fmt_bytes = (1280 * 720 * 3);
+
 // File operations
 
 static struct v4l2_file_operations fw_fops = {
@@ -52,16 +66,6 @@ static struct v4l2_file_operations fw_fops = {
 };
 
 // IOCTL operations
-
-static const char* fw_fmt_description = "RGB24";
-static const u32 fw_fmt_pixelformat = V4L2_PIX_FMT_RGB24;
-static const int fw_fmt_depth = 24;
-static const int fw_fmt_width = 1280;
-static const int fw_fmt_height = 720;
-static const int fw_fmt_field = V4L2_FIELD_NONE;
-static const int fw_fmt_colorspace = V4L2_COLORSPACE_SRGB;
-static const int fw_fmt_std = V4L2_STD_525_60;
-static const int fw_fmt_bytes = (1280 * 720 * 3);
 
 static int fw_vidioc_querycap(struct file* f,
                               void* priv,

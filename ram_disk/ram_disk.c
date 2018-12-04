@@ -57,7 +57,7 @@ static void ram_disk_page_op(struct request* req,
                              struct req_iterator* ri) {
   size_t start = (size_t)ri->iter.bi_sector * 512;
   if (start + (size_t)bvec->bv_len > info.size) {
-    printk(KERN_INFO, "Out of bounds RAM disk access!");
+    printk(KERN_INFO "Out of bounds RAM disk access!");
     return;
   }
   char* page_addr = kmap_atomic(bvec->bv_page);

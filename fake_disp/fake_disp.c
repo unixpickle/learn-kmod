@@ -205,6 +205,7 @@ fail_3:
 fail_2:
   drm_crtc_cleanup(&state.crtc);
 fail_1:
+  drm_mode_config_cleanup(state.device);
   drm_dev_put(state.device);
   return res;
 }

@@ -65,6 +65,7 @@ static ssize_t dev_kbd_ctrl_read(struct file* f,
 
 static void dev_kbd_ctrl_handle(int code, int value) {
   input_report_key(state.input_dev, code, value);
+  input_sync(state.input_dev);
 }
 
 static void dev_kbd_ctrl_handle_line(struct dev_kbd_ctrl* ctrl) {

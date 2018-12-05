@@ -209,7 +209,14 @@ fail_1:
   return res;
 }
 
-static void __exit fake_disp_exit(void) {}
+static void __exit fake_disp_exit(void) {
+  drm_dev_unregister(state.device);
+  drm_connector_unregister(&state.connector);
+  drm_connector_cleanup(&state.connector);
+  drm_encoder_cleanup(&state.encoder);
+  drm_crtc_cleanup(&state.crtc);
+  drm_dev_put(state.device);
+}
 
 module_init(fake_disp_init);
 module_exit(fake_disp_exit);

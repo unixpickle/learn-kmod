@@ -3,6 +3,7 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_encoder.h>
+#include <drm/drm_gem.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -67,7 +68,7 @@ static const struct drm_crtc_funcs fake_disp_crtc_funcs = {
     .page_flip = fake_disp_crtc_page_flip,
 };
 
-static const struct drm_crtc_helper_funcs fake_disp_helper_funcs = {
+static const struct drm_crtc_helper_funcs fake_disp_crtc_helper_funcs = {
     .dpms = fake_disp_crtc_dpms,
     .mode_set = fake_disp_crtc_mode_set,
     .mode_set_base = fake_disp_crtc_mode_set_base,
@@ -128,10 +129,84 @@ static const struct drm_encoder_funcs fake_disp_enc_funcs = {
     .destroy = drm_encoder_cleanup,
 };
 
+// Driver
+
+DEFINE_DRM_GEM_FOPS(fake_disp_fops);
+
+static struct drm_driver fake_disp_driver = {
+    .driver_features = DRIVER_GEM | DRIVER_MODESET,
+    .fops = &fake_disp_fops,
+    .name = "fake_disp",
+    .desc = "fake display interface",
+    .date = "20181205",
+    .major = 1,
+    .minor = 0,
+};
+
 // Module lifecycle
 
 static int __init fake_disp_init(void) {
+  int res;
+
+  state.device = drm_dev_alloc(&fake_disp_driver, NULL);
+  if (IS_ERR(state.device)) {
+    return PTR_ERR(state.device);
+  }
+
+  drm_mode_config_init(state.device);
+  state.device->mode_config.max_width = WIDTH;
+  state.device->mode_config.max_height = HEIGHT;
+  state.device->mode_config.preferred_depth = 24;
+  state.device->mode_config.prefer_shadow = 0;
+  // TODO: set state.device->mode_config.fb_base;
+
+  res = drm_crtc_init(state.device, &state.crtc, &fake_disp_crtc_funcs);
+  if (res) {
+    goto fail_1;
+  }
+  drm_crtc_helper_add(&state.crtc, &fake_disp_crtc_helper_funcs);
+
+  res = drm_encoder_init(state.device, &state.encoder, &fake_disp_enc_funcs,
+                         DRM_MODE_ENCODER_VIRTUAL, NULL);
+  if (res) {
+    goto fail_2;
+  }
+  drm_encoder_helper_add(&state.encoder, &fake_disp_enc_helper_funcs);
+
+  res = drm_connector_init(state.device, &state.connector,
+                           &fake_disp_conn_funcs, DRM_MODE_CONNECTOR_VIRTUAL);
+  if (res) {
+    goto fail_3;
+  }
+  drm_connector_helper_add(&state.connector, &fake_disp_conn_helper_funcs);
+  res = drm_connector_register(&state.connector);
+  if (res) {
+    goto fail_4;
+  }
+
+  res = drm_mode_connector_attach_encoder(&state.connector, &state.encoder);
+  if (res) {
+    goto fail_5;
+  }
+
+  res = drm_dev_register(state.device, 0);
+  if (res) {
+    goto fail_5;
+  }
+
   return 0;
+
+fail_5:
+  drm_connector_unregister(&state.connector);
+fail_4:
+  drm_connector_cleanup(&state.connector);
+fail_3:
+  drm_encoder_cleanup(&state.encoder);
+fail_2:
+  drm_crtc_cleanup(&state.crtc);
+fail_1:
+  drm_dev_put(state.device);
+  return res;
 }
 
 static void __exit fake_disp_exit(void) {}

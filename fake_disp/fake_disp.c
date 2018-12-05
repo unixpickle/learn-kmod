@@ -215,6 +215,7 @@ static void __exit fake_disp_exit(void) {
   drm_connector_cleanup(&state.connector);
   drm_encoder_cleanup(&state.encoder);
   drm_crtc_cleanup(&state.crtc);
+  drm_mode_config_cleanup(state.device);
   drm_dev_put(state.device);
 }
 

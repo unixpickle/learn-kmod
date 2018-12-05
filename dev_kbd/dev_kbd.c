@@ -60,7 +60,7 @@ static ssize_t dev_kbd_ctrl_read(struct file* f,
 }
 
 static void dev_kbd_ctrl_handle(int code, int value) {
-  printk(KERN_INFO "trigger code=%d value=%d", code, value);
+  printk(KERN_INFO "trigger code=%d value=%d\n", code, value);
 }
 
 static void dev_kbd_ctrl_handle_line(struct dev_kbd_ctrl* ctrl) {

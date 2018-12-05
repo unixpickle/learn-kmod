@@ -1,6 +1,7 @@
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/init.h>
+#include <linux/input.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/uaccess.h>
@@ -13,6 +14,9 @@ MODULE_VERSION("0.01");
 #define DRIVER_NAME "dev_kbd"
 
 struct dev_kbd_state {
+  // For the fake keyboard.
+  struct input_dev* input_dev;
+
   // For the character device.
   int ctrl_major;
   struct class* ctrl_class;
@@ -60,7 +64,7 @@ static ssize_t dev_kbd_ctrl_read(struct file* f,
 }
 
 static void dev_kbd_ctrl_handle(int code, int value) {
-  printk(KERN_INFO "trigger code=%d value=%d\n", code, value);
+  input_report_key(state.input_dev, code, value);
 }
 
 static void dev_kbd_ctrl_handle_line(struct dev_kbd_ctrl* ctrl) {
@@ -162,15 +166,43 @@ static void dev_kbd_ctrl_destroy(void) {
 // Module lifecycle
 
 static int __init dev_kbd_init(void) {
+  int i;
   int res = dev_kbd_ctrl_init();
   if (res) {
     return res;
   }
+
+  state.input_dev = input_allocate_device();
+  if (!state.input_dev) {
+    goto fail_alloc;
+  }
+
+  state.input_dev->name = DRIVER_NAME;
+  state.input_dev->phys = DRIVER_NAME;
+  state.input_dev->uniq = DRIVER_NAME;
+  set_bit(EV_KEY, state.input_dev->evbit);
+  for (i = 2; i < 80; i++) {
+    set_bit(i, state.input_dev->keybit);
+  }
+
+  res = input_register_device(state.input_dev);
+  if (res) {
+    goto fail_reg;
+  }
+
   return 0;
+
+fail_reg:
+  input_free_device(state.input_dev);
+fail_alloc:
+  dev_kbd_ctrl_destroy();
+
+  return res;
 }
 
 static void __exit dev_kbd_exit(void) {
   dev_kbd_ctrl_destroy();
+  input_unregister_device(state.input_dev);
 }
 
 module_init(dev_kbd_init);

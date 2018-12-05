@@ -315,20 +315,28 @@ static ssize_t fw_ctrl_write(struct file* f,
                              const char __user* data,
                              size_t size,
                              loff_t* off) {
-  size_t i;
+  size_t remaining = size;
   fw_ctrl_t* ctrl = (fw_ctrl_t*)f->private_data;
   char* local_data = (char*)vmalloc(size);
+  char* cur_data = local_data;
   if (!local_data) {
     return -ENOMEM;
   }
   copy_from_user(local_data, data, size);
-  for (i = 0; i < size; ++i) {
-    ctrl->write_buffer[ctrl->cur_written++] = local_data[i];
-    if (ctrl->cur_written == (size_t)fw_fmt_bytes) {
+  while (remaining) {
+    size_t needed = fw_fmt_bytes - ctrl->cur_written;
+    if (remaining < needed) {
+      memcpy(&ctrl->write_buffer[ctrl->cur_written], cur_data, remaining);
+      ctrl->cur_written += remaining;
+      remaining = 0;
+    } else {
+      memcpy(&ctrl->write_buffer[ctrl->cur_written], cur_data, needed);
       mutex_lock(&fw_info.frame_buffer_lock);
       memcpy(fw_info.frame_buffer, ctrl->write_buffer, fw_fmt_bytes);
       mutex_unlock(&fw_info.frame_buffer_lock);
       ctrl->cur_written = 0;
+      remaining -= needed;
+      cur_data += needed;
     }
   }
   vfree(local_data);

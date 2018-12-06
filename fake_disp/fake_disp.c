@@ -170,7 +170,7 @@ int fake_disp_open(struct inode* inode, struct file* filp) {
 }
 
 long fake_disp_ioctl(struct file* filp, unsigned int cmd, unsigned long arg) {
-  printk(KERN_INFO "fake_disp ioctl(%d) started.\n", cmd, res);
+  printk(KERN_INFO "fake_disp ioctl(%d) started.\n", cmd);
   udelay(1000000);
   long res = drm_ioctl(filp, cmd, arg);
   printk(KERN_INFO "fake_disp ioctl(%d) -> %ld.\n", cmd, res);
@@ -180,7 +180,7 @@ long fake_disp_ioctl(struct file* filp, unsigned int cmd, unsigned long arg) {
 long fake_disp_compat_ioctl(struct file* filp,
                             unsigned int cmd,
                             unsigned long arg) {
-  printk(KERN_INFO "fake_disp compat_ioctl(%d) started.\n", cmd, res);
+  printk(KERN_INFO "fake_disp compat_ioctl(%d) started.\n", cmd);
   udelay(1000000);
   long res = drm_compat_ioctl(filp, cmd, arg);
   printk(KERN_INFO "fake_disp compat_ioctl(%d) -> %ld.\n", cmd, res);

@@ -266,7 +266,7 @@ const struct drm_mode_config_funcs bs_funcs = {
 
 // Module lifecycle
 
-extern unsigned int drm_debug = 0;
+extern unsigned int drm_debug;
 
 static int __init fake_disp_init(void) {
   drm_debug = 0xffffffff;

@@ -88,9 +88,10 @@ static void fake_disp_crtc_atomic_disable(struct drm_crtc* crtc,
 
 static void fake_disp_crtc_atomic_begin(struct drm_crtc* crtc,
                                         struct drm_crtc_state* state) {
+  struct drm_pending_vblank_event* event;
   printk(KERN_INFO "fake_disp crtc_atomic_begin (pid=%d)\n",
          task_pid_nr(current));
-  struct drm_pending_vblank_event* event = crtc->state->event;
+  event = crtc->state->event;
   if (event) {
     crtc->state->event = NULL;
     spin_lock_irq(&crtc->dev->event_lock);
@@ -281,11 +282,12 @@ static struct drm_framebuffer* fake_disp_user_framebuffer_create(
     struct drm_device* dev,
     struct drm_file* filp,
     const struct drm_mode_fb_cmd2* mode_cmd) {
+  struct drm_framebuffer* res;
   printk(KERN_INFO "fake_disp creating framebuffer (pid=%d)\n",
          task_pid_nr(current));
-  struct drm_framebuffer* res = drm_gem_fb_create(dev, filp, mode_cmd);
+  res = drm_gem_fb_create(dev, filp, mode_cmd);
   if (IS_ERR(res)) {
-    printk(KERN_INFO "fake_disp framebuffer create failed -> %d (pid=%d)\n",
+    printk(KERN_INFO "fake_disp framebuffer create failed -> %ld (pid=%d)\n",
            PTR_ERR(res), task_pid_nr(current));
   } else {
     printk(KERN_INFO "fake_disp framebuffer create -> %p %dx%d (pid=%d)\n", res,

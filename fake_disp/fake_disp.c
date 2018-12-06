@@ -172,7 +172,7 @@ long fake_disp_compat_ioctl(struct file* filp,
 int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
   // drm_gem_cma_mmap()
   printk(KERN_INFO "fake_disp mmap\n");
-  return -ENOMEM;
+  return drm_gem_cma_mmap(filp, vma);
 }
 
 static const struct file_operations fake_disp_fops = {

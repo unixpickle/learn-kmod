@@ -313,6 +313,8 @@ static void fake_disp_output_poll_changed(struct drm_device* dev) {
 const struct drm_mode_config_funcs bs_funcs = {
     .fb_create = fake_disp_user_framebuffer_create,
     .output_poll_changed = fake_disp_output_poll_changed,
+    .atomic_check = drm_atomic_helper_check,
+    .atomic_commit = drm_atomic_helper_commit,
 };
 
 // Module lifecycle

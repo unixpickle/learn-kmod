@@ -193,7 +193,7 @@ int fake_disp_gem_dumb_map_offset(struct drm_file* file,
                                   uint32_t handle,
                                   uint64_t* offset) {
   printk(KERN_INFO "fake_disp gem_dumb_mmap_offset\n");
-  return -ENOMEM;
+  return drm_gem_dumb_map_offset(file, dev, handle, offset);
 }
 
 static struct drm_driver fake_disp_driver = {

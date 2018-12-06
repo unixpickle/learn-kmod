@@ -25,6 +25,7 @@ struct fake_disp_state {
   struct drm_crtc crtc;
   struct drm_encoder encoder;
   struct drm_connector connector;
+  struct drm_fbdev_cma* fbdev;
 };
 
 static struct fake_disp_state state;
@@ -253,8 +254,13 @@ static struct drm_framebuffer* fake_disp_user_framebuffer_create(
   return res;
 }
 
+static void fake_disp_output_poll_changed(struct drm_device* dev) {
+  drm_fbdev_cma_hotplug_event(state.fbdev);
+}
+
 const struct drm_mode_config_funcs bs_funcs = {
     .fb_create = fake_disp_user_framebuffer_create,
+    .output_poll_changed = fake_disp_output_poll_changed,
 };
 
 // Module lifecycle
@@ -311,6 +317,9 @@ static int __init fake_disp_init(void) {
   if (res) {
     goto fail_5;
   }
+
+  state.fbdev = drm_fbdev_cma_init(state.device, 24, 1);
+  drm_kms_helper_poll_init(state.device);
 
   return 0;
 

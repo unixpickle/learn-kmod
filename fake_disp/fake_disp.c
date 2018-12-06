@@ -4,9 +4,11 @@
 #include <drm/drm_drv.h>
 #include <drm/drm_encoder.h>
 #include <drm/drm_gem.h>
+#include <drm/drm_gem_cma_helper.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/pid.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Alex Nichol");
@@ -27,12 +29,15 @@ static struct fake_disp_state state;
 
 // CRTC
 
-static void fake_disp_crtc_dpms(struct drm_crtc* crtc, int mode) {}
+static void fake_disp_crtc_dpms(struct drm_crtc* crtc, int mode) {
+  printk(KERN_INFO "fake_disp crtc_dpms\n");
+}
 
 static int fake_disp_crtc_mode_set_base(struct drm_crtc* crtc,
                                         int x,
                                         int y,
                                         struct drm_framebuffer* old_fb) {
+  printk(KERN_INFO "fake_disp crtc_mode_set_base\n");
   return 0;
 }
 
@@ -42,16 +47,20 @@ static int fake_disp_crtc_mode_set(struct drm_crtc* crtc,
                                    int x,
                                    int y,
                                    struct drm_framebuffer* old_fb) {
+  printk(KERN_INFO "fake_disp crtc_mode_set\n");
   return 0;
 }
 
-static void fake_disp_crtc_nop(struct drm_crtc* crtc) {}
+static void fake_disp_crtc_nop(struct drm_crtc* crtc) {
+  printk(KERN_INFO "fake_disp crtc_nop\n");
+}
 
 static int fake_disp_crtc_page_flip(struct drm_crtc* crtc,
                                     struct drm_framebuffer* fb,
                                     struct drm_pending_vblank_event* event,
                                     uint32_t page_flip_flags,
                                     struct drm_modeset_acquire_ctx* ctx) {
+  printk(KERN_INFO "fake_disp crtc_page_flip\n");
   unsigned long flags;
   crtc->primary->fb = fb;
   if (event) {
@@ -79,12 +88,16 @@ static const struct drm_crtc_helper_funcs fake_disp_crtc_helper_funcs = {
 // Connector
 
 static int fake_disp_conn_get_modes(struct drm_connector* connector) {
-  return drm_add_modes_noedid(connector, WIDTH, HEIGHT);
+  int res = drm_add_modes_noedid(connector, WIDTH, HEIGHT);
+  printk(KERN_INFO "fake_disp conn_get_modes %d\n", res);
+  return res;
 }
 
 static enum drm_mode_status fake_disp_conn_mode_valid(
     struct drm_connector* connector,
     struct drm_display_mode* mode) {
+  printk(KERN_INFO "fake_disp conn_mode_valid %d %d\n", mode->hdisplay,
+         mode->vdisplay);
   if (mode->hdisplay != WIDTH || mode->vdisplay != HEIGHT) {
     return MODE_BAD;
   }
@@ -112,11 +125,17 @@ static const struct drm_connector_funcs fake_disp_conn_funcs = {
 
 static void fake_disp_enc_mode_set(struct drm_encoder* encoder,
                                    struct drm_display_mode* mode,
-                                   struct drm_display_mode* adjusted_mode) {}
+                                   struct drm_display_mode* adjusted_mode) {
+  printk(KERN_INFO "fake_disp enc_mode_set\n");
+}
 
-static void fake_disp_enc_dpms(struct drm_encoder* encoder, int state) {}
+static void fake_disp_enc_dpms(struct drm_encoder* encoder, int state) {
+  printk(KERN_INFO "fake_disp enc_dpms\n");
+}
 
-static void fake_disp_enc_nop(struct drm_encoder* encoder) {}
+static void fake_disp_enc_nop(struct drm_encoder* encoder) {
+  printk(KERN_INFO "fake_disp enc_nop\n");
+}
 
 static const struct drm_encoder_helper_funcs fake_disp_enc_helper_funcs = {
     .dpms = fake_disp_enc_dpms,
@@ -131,7 +150,51 @@ static const struct drm_encoder_funcs fake_disp_enc_funcs = {
 
 // Driver
 
-DEFINE_DRM_GEM_FOPS(fake_disp_fops);
+int fake_disp_open(struct inode* inode, struct file* filp) {
+  printk(KERN_INFO "fake_disp open() called (pid=%d).\n", task_pid_nr(current));
+  return drm_open(inode, filp);
+}
+
+long fake_disp_ioctl(struct file* filp, unsigned int cmd, unsigned long arg) {
+  long res = drm_ioctl(filp, cmd, arg);
+  printk(KERN_INFO "fake_disp ioctl(%d) -> %ld.\n", cmd, res);
+  return res;
+}
+
+long fake_disp_compat_ioctl(struct file* filp,
+                            unsigned int cmd,
+                            unsigned long arg) {
+  long res = drm_compat_ioctl(filp, cmd, arg);
+  printk(KERN_INFO "fake_disp compat_ioctl(%d) -> %ld.\n", cmd, res);
+  return res;
+}
+
+static const struct file_operations fake_disp_fops = {
+    .owner = THIS_MODULE,
+    .open = fake_disp_open,
+    .release = drm_release,
+    .unlocked_ioctl = fake_disp_ioctl,
+    .compat_ioctl = fake_disp_compat_ioctl,
+    .poll = drm_poll,
+    .read = drm_read,
+    .llseek = noop_llseek,
+    .mmap = drm_gem_mmap,
+};
+
+int fake_disp_gem_dumb_create(struct drm_file* file,
+                              struct drm_device* dev,
+                              struct drm_mode_create_dumb* args) {
+  printk(KERN_INFO "fake_disp gem_dumb_create\n");
+  return -ENOMEM;
+}
+
+int fake_disp_gem_dumb_map_offset(struct drm_file* file,
+                                  struct drm_device* dev,
+                                  uint32_t handle,
+                                  uint64_t* offset) {
+  printk(KERN_INFO "fake_disp gem_dumb_mmap_offset\n");
+  return -ENOMEM;
+}
 
 static struct drm_driver fake_disp_driver = {
     .driver_features = DRIVER_GEM | DRIVER_MODESET,
@@ -141,9 +204,25 @@ static struct drm_driver fake_disp_driver = {
     .date = "20181205",
     .major = 1,
     .minor = 0,
+    .gem_vm_ops = &drm_gem_cma_vm_ops,
+    .gem_free_object_unlocked = drm_gem_object_release,
+    .dumb_create = fake_disp_gem_dumb_create,
+    .dumb_map_offset = fake_disp_gem_dumb_map_offset,
 };
 
 // Module lifecycle
+
+static struct drm_framebuffer* bochs_user_framebuffer_create(
+    struct drm_device* dev,
+    struct drm_file* filp,
+    const struct drm_mode_fb_cmd2* mode_cmd) {
+  printk(KERN_INFO "framebuffer create!\n");
+  return NULL;
+}
+
+const struct drm_mode_config_funcs bs_funcs = {
+    .fb_create = bochs_user_framebuffer_create,
+};
 
 static int __init fake_disp_init(void) {
   int res;
@@ -158,6 +237,7 @@ static int __init fake_disp_init(void) {
   state.device->mode_config.max_height = HEIGHT;
   state.device->mode_config.preferred_depth = 24;
   state.device->mode_config.prefer_shadow = 0;
+  state.device->mode_config.funcs = &bs_funcs;
   // TODO: set state.device->mode_config.fb_base;
 
   res = drm_crtc_init(state.device, &state.crtc, &fake_disp_crtc_funcs);
@@ -179,17 +259,18 @@ static int __init fake_disp_init(void) {
     goto fail_3;
   }
   drm_connector_helper_add(&state.connector, &fake_disp_conn_helper_funcs);
-  res = drm_connector_register(&state.connector);
+
+  res = drm_mode_connector_attach_encoder(&state.connector, &state.encoder);
   if (res) {
     goto fail_4;
   }
 
-  res = drm_mode_connector_attach_encoder(&state.connector, &state.encoder);
+  res = drm_dev_register(state.device, 0);
   if (res) {
-    goto fail_5;
+    goto fail_4;
   }
 
-  res = drm_dev_register(state.device, 0);
+  res = drm_connector_register(&state.connector);
   if (res) {
     goto fail_5;
   }
@@ -197,7 +278,7 @@ static int __init fake_disp_init(void) {
   return 0;
 
 fail_5:
-  drm_connector_unregister(&state.connector);
+  drm_dev_unregister(state.device);
 fail_4:
   drm_connector_cleanup(&state.connector);
 fail_3:
@@ -211,8 +292,8 @@ fail_1:
 }
 
 static void __exit fake_disp_exit(void) {
-  drm_dev_unregister(state.device);
   drm_connector_unregister(&state.connector);
+  drm_dev_unregister(state.device);
   drm_connector_cleanup(&state.connector);
   drm_encoder_cleanup(&state.encoder);
   drm_crtc_cleanup(&state.crtc);

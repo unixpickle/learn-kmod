@@ -192,7 +192,8 @@ static const struct file_operations fake_disp_fops = {
 int fake_disp_gem_dumb_create(struct drm_file* file,
                               struct drm_device* dev,
                               struct drm_mode_create_dumb* args) {
-  printk(KERN_INFO "fake_disp gem_dumb_create\n");
+  printk(KERN_INFO "fake_disp gem_dumb_create (pid=%d)\n",
+         task_pid_nr(current));
   return drm_gem_cma_dumb_create(file, dev, args);
 }
 

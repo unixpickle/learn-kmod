@@ -330,10 +330,16 @@ static int __init fake_disp_init(void) {
   printk("fake_disp num connector %d (conn status should be 1 %d)\n",
          state.device->mode_config.num_connector, state.connector.status);
   state.fbdev = drm_fbdev_cma_init(state.device, 24, 1);
+  if (IS_ERR(state.fbdev)) {
+    res = PTR_ERR(state.fbdev);
+    goto fail_6;
+  }
   drm_kms_helper_poll_init(state.device);
 
   return 0;
 
+fail_6:
+  drm_connector_unregister(&state.connector);
 fail_5:
   drm_dev_unregister(state.device);
 fail_4:
@@ -349,6 +355,7 @@ fail_1:
 }
 
 static void __exit fake_disp_exit(void) {
+  drm_fbdev_cma_fini(state.fbdev);
   drm_connector_unregister(&state.connector);
   drm_dev_unregister(state.device);
   drm_connector_cleanup(&state.connector);

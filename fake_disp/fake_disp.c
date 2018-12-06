@@ -8,6 +8,7 @@
 #include <drm/drm_gem.h>
 #include <drm/drm_gem_cma_helper.h>
 #include <drm/drm_gem_framebuffer_helper.h>
+#include <drm/drm_plane_helper.h>
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -31,6 +32,51 @@ struct fake_disp_state {
 };
 
 static struct fake_disp_state state;
+
+// Planes
+
+static void fake_disp_plane_atomic_update(struct drm_plane* plane,
+                                          struct drm_plane_state* state) {
+  printk("fake_disp plane_atomic_update (pid=%d)\n", task_pid_nr(current));
+}
+
+static const struct drm_plane_helper_funcs fake_disp_plane_helper_funcs = {
+    .atomic_update = fake_disp_plane_atomic_update,
+};
+
+static void fake_disp_plane_destroy(struct drm_plane* plane) {
+  drm_plane_helper_disable(plane);
+  drm_plane_cleanup(plane);
+}
+
+static const struct drm_plane_funcs fake_disp_plane_funcs = {
+    .update_plane = drm_atomic_helper_update_plane,
+    .disable_plane = drm_atomic_helper_disable_plane,
+    .destroy = fake_disp_plane_destroy,
+    .reset = drm_atomic_helper_plane_reset,
+    .atomic_duplicate_state = drm_atomic_helper_plane_duplicate_state,
+    .atomic_destroy_state = drm_atomic_helper_plane_destroy_state,
+};
+
+static struct drm_plane* fake_disp_plane_init(struct drm_device* drm) {
+  struct drm_plane* plane = NULL;
+  u32 format = DRM_FORMAT_RGB888;
+  int ret;
+
+  plane = kzalloc(sizeof(*plane), GFP_KERNEL);
+  if (!plane) {
+    return ERR_PTR(-ENOMEM);
+  }
+
+  ret =
+      drm_universal_plane_init(drm, plane, 0xff, &fake_disp_plane_funcs,
+                               &format, 1, NULL, DRM_PLANE_TYPE_PRIMARY, NULL);
+  if (ret) {
+    return ERR_PTR(ret);
+  }
+  drm_plane_helper_add(plane, &fake_disp_plane_helper_funcs);
+  return plane;
+}
 
 // CRTC
 
@@ -296,7 +342,9 @@ static int __init fake_disp_init(void) {
   state.device->mode_config.funcs = &bs_funcs;
   // TODO: set state.device->mode_config.fb_base;
 
-  res = drm_crtc_init(state.device, &state.crtc, &fake_disp_crtc_funcs);
+  res = drm_crtc_init_with_planes(state.device, &state.crtc,
+                                  fake_disp_plane_init(state.device), NULL,
+                                  &fake_disp_crtc_funcs, NULL);
   if (res) {
     goto fail_1;
   }

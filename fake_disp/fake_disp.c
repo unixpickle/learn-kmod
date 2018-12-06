@@ -202,6 +202,18 @@ int fake_disp_gem_dumb_map_offset(struct drm_file* file,
   return drm_gem_dumb_map_offset(file, dev, handle, offset);
 }
 
+int fake_disp_gem_dumb_destroy(struct drm_file* file_priv,
+                               struct drm_device* dev,
+                               uint32_t handle) {
+  printk(KERN_INFO "fake_disp gem_dumb_destroy\n");
+  return 0;
+}
+
+void fake_disp_gem_free_object(struct drm_gem_object* gem_obj) {
+  printk(KERN_INFO "fake_disp gem_free_object\n");
+  drm_gem_cma_free_object(gem_obj);
+}
+
 static struct drm_driver fake_disp_driver = {
     .driver_features = DRIVER_GEM | DRIVER_MODESET,
     .fops = &fake_disp_fops,
@@ -211,9 +223,10 @@ static struct drm_driver fake_disp_driver = {
     .major = 1,
     .minor = 0,
     .gem_vm_ops = &drm_gem_cma_vm_ops,
-    .gem_free_object_unlocked = drm_gem_object_release,
+    .gem_free_object_unlocked = fake_disp_gem_free_object,
     .dumb_create = fake_disp_gem_dumb_create,
     .dumb_map_offset = fake_disp_gem_dumb_map_offset,
+    .dumb_destroy = fake_disp_gem_dumb_destroy,
 };
 
 // Module lifecycle

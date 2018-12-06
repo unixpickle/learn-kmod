@@ -238,8 +238,10 @@ static struct drm_framebuffer* fake_disp_user_framebuffer_create(
     struct drm_device* dev,
     struct drm_file* filp,
     const struct drm_mode_fb_cmd2* mode_cmd) {
-  printk(KERN_INFO "framebuffer create!\n");
-  return drm_gem_fb_create(dev, filp, mode_cmd);
+  drm_framebuffer* res = drm_gem_fb_create(dev, filp, mode_cmd);
+  printk(KERN_INFO "framebuffer create -> %p %dx%d (pid=%d)\n", res, res->width,
+         res->height, task_pid_nr(current));
+  return res;
 }
 
 const struct drm_mode_config_funcs bs_funcs = {

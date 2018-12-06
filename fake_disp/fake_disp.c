@@ -324,7 +324,7 @@ extern unsigned int drm_debug;
 
 static int __init fake_disp_init(void) {
   // Enable this to see a ton of log messages.
-  // drm_debug = 0xffffffff;
+  drm_debug = 0xffffffff;
   int res;
 
   state.device = drm_dev_alloc(&fake_disp_driver, NULL);

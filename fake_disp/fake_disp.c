@@ -25,6 +25,7 @@ MODULE_VERSION("0.01");
 
 struct fake_disp_state {
   struct drm_device* device;
+  struct drm_plane plane;
   struct drm_crtc crtc;
   struct drm_encoder encoder;
   struct drm_connector connector;
@@ -35,6 +36,8 @@ static struct fake_disp_state state;
 
 // Planes
 
+static const u32 fake_disp_plane_format = DRM_FORMAT_RGB888;
+
 static void fake_disp_plane_atomic_update(struct drm_plane* plane,
                                           struct drm_plane_state* state) {
   printk("fake_disp plane_atomic_update (pid=%d)\n", task_pid_nr(current));
@@ -44,39 +47,14 @@ static const struct drm_plane_helper_funcs fake_disp_plane_helper_funcs = {
     .atomic_update = fake_disp_plane_atomic_update,
 };
 
-static void fake_disp_plane_destroy(struct drm_plane* plane) {
-  drm_plane_helper_disable(plane);
-  drm_plane_cleanup(plane);
-}
-
 static const struct drm_plane_funcs fake_disp_plane_funcs = {
     .update_plane = drm_atomic_helper_update_plane,
     .disable_plane = drm_atomic_helper_disable_plane,
-    .destroy = fake_disp_plane_destroy,
+    .destroy = drm_plane_cleanup,
     .reset = drm_atomic_helper_plane_reset,
     .atomic_duplicate_state = drm_atomic_helper_plane_duplicate_state,
     .atomic_destroy_state = drm_atomic_helper_plane_destroy_state,
 };
-
-static struct drm_plane* fake_disp_plane_init(struct drm_device* drm) {
-  struct drm_plane* plane = NULL;
-  u32 format = DRM_FORMAT_RGB888;
-  int ret;
-
-  plane = kzalloc(sizeof(*plane), GFP_KERNEL);
-  if (!plane) {
-    return ERR_PTR(-ENOMEM);
-  }
-
-  ret =
-      drm_universal_plane_init(drm, plane, 0xff, &fake_disp_plane_funcs,
-                               &format, 1, NULL, DRM_PLANE_TYPE_PRIMARY, NULL);
-  if (ret) {
-    return ERR_PTR(ret);
-  }
-  drm_plane_helper_add(plane, &fake_disp_plane_helper_funcs);
-  return plane;
-}
 
 // CRTC
 
@@ -214,26 +192,28 @@ static const struct drm_encoder_funcs fake_disp_enc_funcs = {
 
 // Driver
 
-int fake_disp_open(struct inode* inode, struct file* filp) {
+static int fake_disp_open(struct inode* inode, struct file* filp) {
   printk(KERN_INFO "fake_disp open() called (pid=%d).\n", task_pid_nr(current));
   return drm_open(inode, filp);
 }
 
-long fake_disp_ioctl(struct file* filp, unsigned int cmd, unsigned long arg) {
+static long fake_disp_ioctl(struct file* filp,
+                            unsigned int cmd,
+                            unsigned long arg) {
   long res = drm_ioctl(filp, cmd, arg);
   printk(KERN_INFO "fake_disp ioctl(%d) -> %ld\n", cmd, res);
   return res;
 }
 
-long fake_disp_compat_ioctl(struct file* filp,
-                            unsigned int cmd,
-                            unsigned long arg) {
+static long fake_disp_compat_ioctl(struct file* filp,
+                                   unsigned int cmd,
+                                   unsigned long arg) {
   long res = drm_compat_ioctl(filp, cmd, arg);
   printk(KERN_INFO "fake_disp compat_ioctl(%d) -> %ld\n", cmd, res);
   return res;
 }
 
-int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
+static int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
   printk(KERN_INFO "fake_disp mmap(%lu) (pid=%d)\n", vma->vm_pgoff,
          task_pid_nr(current));
   return drm_gem_cma_mmap(filp, vma);
@@ -251,31 +231,31 @@ static const struct file_operations fake_disp_fops = {
     .mmap = fake_disp_mmap,
 };
 
-int fake_disp_gem_dumb_create(struct drm_file* file,
-                              struct drm_device* dev,
-                              struct drm_mode_create_dumb* args) {
+static int fake_disp_gem_dumb_create(struct drm_file* file,
+                                     struct drm_device* dev,
+                                     struct drm_mode_create_dumb* args) {
   printk(KERN_INFO "fake_disp gem_dumb_create (pid=%d)\n",
          task_pid_nr(current));
   return drm_gem_cma_dumb_create(file, dev, args);
 }
 
-int fake_disp_gem_dumb_map_offset(struct drm_file* file,
-                                  struct drm_device* dev,
-                                  uint32_t handle,
-                                  uint64_t* offset) {
+static int fake_disp_gem_dumb_map_offset(struct drm_file* file,
+                                         struct drm_device* dev,
+                                         uint32_t handle,
+                                         uint64_t* offset) {
   int res = drm_gem_dumb_map_offset(file, dev, handle, offset);
   printk(KERN_INFO "fake_disp gem_dumb_mmap_offset() -> %llu\n", *offset);
   return res;
 }
 
-int fake_disp_gem_dumb_destroy(struct drm_file* file_priv,
-                               struct drm_device* dev,
-                               uint32_t handle) {
+static int fake_disp_gem_dumb_destroy(struct drm_file* file_priv,
+                                      struct drm_device* dev,
+                                      uint32_t handle) {
   printk(KERN_INFO "fake_disp gem_dumb_destroy\n");
   return 0;
 }
 
-void fake_disp_gem_free_object(struct drm_gem_object* gem_obj) {
+static void fake_disp_gem_free_object(struct drm_gem_object* gem_obj) {
   printk(KERN_INFO "fake_disp gem_free_object\n");
   drm_gem_cma_free_object(gem_obj);
 }
@@ -330,10 +310,8 @@ const struct drm_mode_config_funcs bs_funcs = {
 extern unsigned int drm_debug;
 
 static int __init fake_disp_init(void) {
+  // Enable this to see a ton of log messages.
   // drm_debug = 0xffffffff;
-  printk(KERN_DEBUG "fake_disp debug test");
-  DRM_DEBUG_KMS("fake_disp drm debug test");
-
   int res;
 
   state.device = drm_dev_alloc(&fake_disp_driver, NULL);
@@ -350,13 +328,19 @@ static int __init fake_disp_init(void) {
   // state.device->mode_config.preferred_depth = 24;
   // state.device->mode_config.prefer_shadow = 0;
   state.device->mode_config.funcs = &bs_funcs;
-  // TODO: set state.device->mode_config.fb_base;
 
-  res = drm_crtc_init_with_planes(state.device, &state.crtc,
-                                  fake_disp_plane_init(state.device), NULL,
-                                  &fake_disp_crtc_funcs, NULL);
+  res = drm_universal_plane_init(
+      state.device, &state.plane, 0xff, &fake_disp_plane_funcs,
+      &fake_disp_plane_format, 1, NULL, DRM_PLANE_TYPE_PRIMARY, NULL);
   if (res) {
     goto fail_1;
+  }
+  drm_plane_helper_add(&state.plane, &fake_disp_plane_helper_funcs);
+
+  res = drm_crtc_init_with_planes(state.device, &state.crtc, &state.plane, NULL,
+                                  &fake_disp_crtc_funcs, NULL);
+  if (res) {
+    goto fail_2;
   }
   state.crtc.enabled = true;
   drm_crtc_helper_add(&state.crtc, &fake_disp_crtc_helper_funcs);
@@ -364,57 +348,55 @@ static int __init fake_disp_init(void) {
   res = drm_encoder_init(state.device, &state.encoder, &fake_disp_enc_funcs,
                          DRM_MODE_ENCODER_VIRTUAL, NULL);
   if (res) {
-    goto fail_2;
+    goto fail_3;
   }
   drm_encoder_helper_add(&state.encoder, &fake_disp_enc_helper_funcs);
 
   res = drm_connector_init(state.device, &state.connector,
                            &fake_disp_conn_funcs, DRM_MODE_CONNECTOR_VIRTUAL);
   if (res) {
-    goto fail_3;
+    goto fail_4;
   }
   state.connector.status = connector_status_connected;
   drm_connector_helper_add(&state.connector, &fake_disp_conn_helper_funcs);
 
   res = drm_mode_connector_attach_encoder(&state.connector, &state.encoder);
   if (res) {
-    goto fail_4;
+    goto fail_5;
   }
 
   res = drm_dev_register(state.device, 0);
   if (res) {
-    goto fail_4;
+    goto fail_5;
   }
 
   res = drm_connector_register(&state.connector);
   if (res) {
-    goto fail_5;
+    goto fail_6;
   }
 
-  printk(
-      "fake_disp num connector %d num crtc %d (conn status should be 1 %d)\n",
-      state.device->mode_config.num_connector,
-      state.device->mode_config.num_crtc, state.connector.status);
   drm_mode_config_reset(state.device);
   state.fbdev = drm_fbdev_cma_init(state.device, 24, 1);
   if (IS_ERR(state.fbdev)) {
     res = PTR_ERR(state.fbdev);
-    goto fail_6;
+    goto fail_7;
   }
   drm_kms_helper_poll_init(state.device);
 
   return 0;
 
-fail_6:
+fail_7:
   drm_connector_unregister(&state.connector);
-fail_5:
+fail_6:
   drm_dev_unregister(state.device);
-fail_4:
+fail_5:
   drm_connector_cleanup(&state.connector);
-fail_3:
+fail_4:
   drm_encoder_cleanup(&state.encoder);
-fail_2:
+fail_3:
   drm_crtc_cleanup(&state.crtc);
+fail_2:
+  drm_plane_cleanup(&state.plane);
 fail_1:
   drm_mode_config_cleanup(state.device);
   drm_dev_put(state.device);

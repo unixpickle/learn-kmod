@@ -1,3 +1,4 @@
+#include <drm/drm_atomic_helper.h>
 #include <drm/drm_connector.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
@@ -36,24 +37,35 @@ static struct fake_disp_state state;
 static enum drm_mode_status fake_disp_crtc_mode_valid(
     struct drm_crtc* crtc,
     const struct drm_display_mode* mode) {
-  return fake_disp_conn_mode_valid(NULL, mode);
+  printk(KERN_INFO "fake_disp crtc_mode_valid %d %d (pid=%d)\n", mode->hdisplay,
+         mode->vdisplay, task_pid_nr(current));
+  // if (mode->hdisplay != WIDTH || mode->vdisplay != HEIGHT) {
+  //   return MODE_BAD;
+  // }
+  return MODE_OK;
 }
 
-static void fake_disp_crtc_mode_set_nofb(struct drm_crtc* crtc) {}
+static void fake_disp_crtc_mode_set_nofb(struct drm_crtc* crtc) {
+  printk(KERN_INFO "fake_disp crtc_mode_set_nofb (pid=%d)\n",
+         task_pid_nr(current));
+}
 
 static void fake_disp_crtc_atomic_enable(struct drm_crtc* crtc,
                                          struct drm_crtc_state* old_state) {
-  printk(KERN_INFO "fake_disp crtc_atomic_enable");
+  printk(KERN_INFO "fake_disp crtc_atomic_enable (pid=%d)\n",
+         task_pid_nr(current));
 }
 
 static void fake_disp_crtc_atomic_disable(struct drm_crtc* crtc,
                                           struct drm_crtc_state* old_state) {
-  printk(KERN_INFO "fake_disp crtc_atomic_disable");
+  printk(KERN_INFO "fake_disp crtc_atomic_disable (pid=%d)\n",
+         task_pid_nr(current));
 }
 
 static void fake_disp_crtc_atomic_begin(struct drm_crtc* crtc,
                                         struct drm_crtc_state* state) {
-  printk(KERN_INFO "fake_disp crtc_atomic_begin");
+  printk(KERN_INFO "fake_disp crtc_atomic_begin (pid=%d)\n",
+         task_pid_nr(current));
   struct drm_pending_vblank_event* event = crtc->state->event;
   if (event) {
     crtc->state->event = NULL;

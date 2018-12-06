@@ -92,7 +92,8 @@ static const struct drm_crtc_helper_funcs fake_disp_crtc_helper_funcs = {
 static int fake_disp_conn_get_modes(struct drm_connector* connector) {
   int res = drm_add_modes_noedid(connector, WIDTH, HEIGHT);
   printk(KERN_INFO "fake_disp conn_get_modes %d\n", res);
-  return res;
+  // return res;
+  return 1;
 }
 
 static enum drm_mode_status fake_disp_conn_mode_valid(

@@ -100,9 +100,9 @@ static enum drm_mode_status fake_disp_conn_mode_valid(
     struct drm_display_mode* mode) {
   printk(KERN_INFO "fake_disp conn_mode_valid %d %d (pid=%d)\n", mode->hdisplay,
          mode->vdisplay, task_pid_nr(current));
-  if (mode->hdisplay != WIDTH || mode->vdisplay != HEIGHT) {
-    return MODE_BAD;
-  }
+  // if (mode->hdisplay != WIDTH || mode->vdisplay != HEIGHT) {
+  //   return MODE_BAD;
+  // }
   return MODE_OK;
 }
 

@@ -1,3 +1,4 @@
+#include <drm/drm_atomic_helper.h>
 #include <drm/drm_connector.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
@@ -73,18 +74,52 @@ static int fake_disp_crtc_page_flip(struct drm_crtc* crtc,
   return 0;
 }
 
+static void fake_disp_crtc_atomic_enable(struct drm_crtc* crtc,
+                                         struct drm_crtc_state* old_state) {
+  printk(KERN_INFO "fake_disp crtc_atomic_enable\n");
+}
+
+static void fake_disp_crtc_atomic_disable(struct drm_crtc* crtc,
+                                          struct drm_crtc_state* old_state) {
+  printk(KERN_INFO "fake_disp crtc_atomic_disable\n");
+}
+
+static void fake_disp_crtc_atomic_begin(struct drm_crtc* crtc,
+                                        struct drm_crtc_state* state) {
+  printk(KERN_INFO "fake_disp crtc_atomic_begin\n");
+  struct drm_pending_vblank_event* event = crtc->state->event;
+  if (event) {
+    crtc->state->event = NULL;
+    spin_lock_irq(&crtc->dev->event_lock);
+    drm_crtc_send_vblank_event(crtc, event);
+    spin_unlock_irq(&crtc->dev->event_lock);
+  }
+}
+
 static const struct drm_crtc_funcs fake_disp_crtc_funcs = {
-    .set_config = drm_crtc_helper_set_config,
-    .destroy = drm_crtc_cleanup,
-    .page_flip = fake_disp_crtc_page_flip,
+    .set_config = drm_atomic_helper_set_config,
+    .page_flip = drm_atomic_helper_page_flip,
+    .reset = drm_atomic_helper_crtc_reset,
+    .atomic_duplicate_state = drm_atomic_helper_crtc_duplicate_state,
+    .atomic_destroy_state = drm_atomic_helper_crtc_destroy_state,
 };
 
 static const struct drm_crtc_helper_funcs fake_disp_crtc_helper_funcs = {
     .dpms = fake_disp_crtc_dpms,
     .mode_set = fake_disp_crtc_mode_set,
     .mode_set_base = fake_disp_crtc_mode_set_base,
-    .prepare = fake_disp_crtc_nop,
-    .commit = fake_disp_crtc_nop,
+    .atomic_begin = fake_disp_crtc_atomic_begin,
+    .atomic_enable = fake_disp_crtc_atomic_enable,
+    .atomic_disable = fake_disp_crtc_atomic_disable,
+};
+
+static void fake_disp_plane_atomic_update(struct drm_plane* plane,
+                                          struct drm_plane_state* state) {
+  printk("fake_disp plane_atomic_update");
+}
+
+static const struct drm_plane_helper_funcs fake_disp_plane_helper_funcs = {
+    .atomic_update = fake_disp_plane_atomic_update,
 };
 
 // Connector

@@ -239,7 +239,8 @@ static struct drm_framebuffer* fake_disp_user_framebuffer_create(
     struct drm_device* dev,
     struct drm_file* filp,
     const struct drm_mode_fb_cmd2* mode_cmd) {
-  printk(KERN_INFO "fake_disp creating framebuffer\n");
+  printk(KERN_INFO "fake_disp creating framebuffer (pid=%d)\n",
+         task_pid_nr(current));
   struct drm_framebuffer* res = drm_gem_fb_create(dev, filp, mode_cmd);
   if (IS_ERR(res)) {
     printk(KERN_INFO "fake_disp framebuffer create failed -> %d (pid=%d)\n",

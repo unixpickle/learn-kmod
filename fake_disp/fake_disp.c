@@ -262,7 +262,8 @@ static void fake_disp_gem_free_object(struct drm_gem_object* gem_obj) {
 }
 
 static struct drm_driver fake_disp_driver = {
-    .driver_features = DRIVER_GEM | DRIVER_MODESET | DRIVER_ATOMIC,
+    .driver_features =
+        DRIVER_GEM | DRIVER_MODESET | DRIVER_ATOMIC | DRIVER_PRIME,
     .fops = &fake_disp_fops,
     .name = "fake_disp",
     .desc = "fake display interface",
@@ -274,6 +275,16 @@ static struct drm_driver fake_disp_driver = {
     .dumb_create = fake_disp_gem_dumb_create,
     .dumb_map_offset = fake_disp_gem_dumb_map_offset,
     .dumb_destroy = fake_disp_gem_dumb_destroy,
+
+    .prime_handle_to_fd = drm_gem_prime_handle_to_fd,
+    .prime_fd_to_handle = drm_gem_prime_fd_to_handle,
+    .gem_prime_export = drm_gem_prime_export,
+    .gem_prime_import = drm_gem_prime_import,
+    .gem_prime_get_sg_table = drm_gem_cma_prime_get_sg_table,
+    .gem_prime_import_sg_table = drm_gem_cma_prime_import_sg_table,
+    .gem_prime_vmap = drm_gem_cma_prime_vmap,
+    .gem_prime_vunmap = drm_gem_cma_prime_vunmap,
+    .gem_prime_mmap = drm_gem_cma_prime_mmap,
 };
 
 // Framebuffers

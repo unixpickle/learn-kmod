@@ -169,6 +169,12 @@ long fake_disp_compat_ioctl(struct file* filp,
   return res;
 }
 
+int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
+  // drm_gem_cma_mmap()
+  printk(KERN_INFO "fake_disp mmap\n");
+  return -ENOMEM;
+}
+
 static const struct file_operations fake_disp_fops = {
     .owner = THIS_MODULE,
     .open = fake_disp_open,
@@ -178,7 +184,7 @@ static const struct file_operations fake_disp_fops = {
     .poll = drm_poll,
     .read = drm_read,
     .llseek = noop_llseek,
-    .mmap = drm_gem_cma_mmap,
+    .mmap = fake_disp_mmap,
 };
 
 int fake_disp_gem_dumb_create(struct drm_file* file,

@@ -178,7 +178,7 @@ static const struct file_operations fake_disp_fops = {
     .poll = drm_poll,
     .read = drm_read,
     .llseek = noop_llseek,
-    .mmap = drm_gem_mmap,
+    .mmap = drm_gem_cma_mmap,
 };
 
 int fake_disp_gem_dumb_create(struct drm_file* file,
@@ -212,7 +212,7 @@ static struct drm_driver fake_disp_driver = {
 
 // Module lifecycle
 
-static struct drm_framebuffer* bochs_user_framebuffer_create(
+static struct drm_framebuffer* fake_disp_user_framebuffer_create(
     struct drm_device* dev,
     struct drm_file* filp,
     const struct drm_mode_fb_cmd2* mode_cmd) {
@@ -221,7 +221,7 @@ static struct drm_framebuffer* bochs_user_framebuffer_create(
 }
 
 const struct drm_mode_config_funcs bs_funcs = {
-    .fb_create = bochs_user_framebuffer_create,
+    .fb_create = fake_disp_user_framebuffer_create,
 };
 
 static int __init fake_disp_init(void) {

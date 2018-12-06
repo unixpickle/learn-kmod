@@ -266,7 +266,13 @@ const struct drm_mode_config_funcs bs_funcs = {
 
 // Module lifecycle
 
+extern unsigned int drm_debug = 0;
+
 static int __init fake_disp_init(void) {
+  drm_debug = 0xffffffff;
+  printk(KERN_DEBUG "fake_disp debug test");
+  DRM_DEBUG_KMS("fake_disp drm debug test");
+
   int res;
 
   state.device = drm_dev_alloc(&fake_disp_driver, NULL);
@@ -303,6 +309,7 @@ static int __init fake_disp_init(void) {
   if (res) {
     goto fail_3;
   }
+  state.connector.status = connector_status_connected;
   drm_connector_helper_add(&state.connector, &fake_disp_conn_helper_funcs);
 
   res = drm_mode_connector_attach_encoder(&state.connector, &state.encoder);

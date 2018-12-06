@@ -32,7 +32,7 @@ static struct fake_disp_state state;
 
 static void fake_disp_crtc_dpms(struct drm_crtc* crtc, int mode) {
   printk(KERN_INFO "fake_disp crtc_dpms\n");
-  udelay(1000000);
+  msleep(500);
 }
 
 static int fake_disp_crtc_mode_set_base(struct drm_crtc* crtc,
@@ -40,7 +40,7 @@ static int fake_disp_crtc_mode_set_base(struct drm_crtc* crtc,
                                         int y,
                                         struct drm_framebuffer* old_fb) {
   printk(KERN_INFO "fake_disp crtc_mode_set_base\n");
-  udelay(1000000);
+  msleep(500);
   return 0;
 }
 
@@ -51,13 +51,13 @@ static int fake_disp_crtc_mode_set(struct drm_crtc* crtc,
                                    int y,
                                    struct drm_framebuffer* old_fb) {
   printk(KERN_INFO "fake_disp crtc_mode_set\n");
-  udelay(1000000);
+  msleep(500);
   return 0;
 }
 
 static void fake_disp_crtc_nop(struct drm_crtc* crtc) {
   printk(KERN_INFO "fake_disp crtc_nop\n");
-  udelay(1000000);
+  msleep(500);
 }
 
 static int fake_disp_crtc_page_flip(struct drm_crtc* crtc,
@@ -66,7 +66,7 @@ static int fake_disp_crtc_page_flip(struct drm_crtc* crtc,
                                     uint32_t page_flip_flags,
                                     struct drm_modeset_acquire_ctx* ctx) {
   printk(KERN_INFO "fake_disp crtc_page_flip\n");
-  udelay(1000000);
+  msleep(500);
   unsigned long flags;
   crtc->primary->fb = fb;
   if (event) {
@@ -96,7 +96,7 @@ static const struct drm_crtc_helper_funcs fake_disp_crtc_helper_funcs = {
 static int fake_disp_conn_get_modes(struct drm_connector* connector) {
   int res = drm_add_modes_noedid(connector, WIDTH, HEIGHT);
   printk(KERN_INFO "fake_disp conn_get_modes %d\n", res);
-  udelay(1000000);
+  msleep(500);
   return res;
 }
 
@@ -105,7 +105,7 @@ static enum drm_mode_status fake_disp_conn_mode_valid(
     struct drm_display_mode* mode) {
   printk(KERN_INFO "fake_disp conn_mode_valid %d %d\n", mode->hdisplay,
          mode->vdisplay);
-  udelay(1000000);
+  msleep(500);
 
   if (mode->hdisplay != WIDTH || mode->vdisplay != HEIGHT) {
     return MODE_BAD;
@@ -136,17 +136,17 @@ static void fake_disp_enc_mode_set(struct drm_encoder* encoder,
                                    struct drm_display_mode* mode,
                                    struct drm_display_mode* adjusted_mode) {
   printk(KERN_INFO "fake_disp enc_mode_set\n");
-  udelay(1000000);
+  msleep(500);
 }
 
 static void fake_disp_enc_dpms(struct drm_encoder* encoder, int state) {
   printk(KERN_INFO "fake_disp enc_dpms\n");
-  udelay(1000000);
+  msleep(500);
 }
 
 static void fake_disp_enc_nop(struct drm_encoder* encoder) {
   printk(KERN_INFO "fake_disp enc_nop\n");
-  udelay(1000000);
+  msleep(500);
 }
 
 static const struct drm_encoder_helper_funcs fake_disp_enc_helper_funcs = {
@@ -164,14 +164,14 @@ static const struct drm_encoder_funcs fake_disp_enc_funcs = {
 
 int fake_disp_open(struct inode* inode, struct file* filp) {
   printk(KERN_INFO "fake_disp open() called (pid=%d).\n", task_pid_nr(current));
-  udelay(1000000);
+  msleep(500);
 
   return drm_open(inode, filp);
 }
 
 long fake_disp_ioctl(struct file* filp, unsigned int cmd, unsigned long arg) {
   printk(KERN_INFO "fake_disp ioctl(%d) started.\n", cmd);
-  udelay(1000000);
+  msleep(500);
   long res = drm_ioctl(filp, cmd, arg);
   printk(KERN_INFO "fake_disp ioctl(%d) -> %ld.\n", cmd, res);
   return res;
@@ -181,7 +181,7 @@ long fake_disp_compat_ioctl(struct file* filp,
                             unsigned int cmd,
                             unsigned long arg) {
   printk(KERN_INFO "fake_disp compat_ioctl(%d) started.\n", cmd);
-  udelay(1000000);
+  msleep(500);
   long res = drm_compat_ioctl(filp, cmd, arg);
   printk(KERN_INFO "fake_disp compat_ioctl(%d) -> %ld.\n", cmd, res);
   return res;
@@ -190,7 +190,7 @@ long fake_disp_compat_ioctl(struct file* filp,
 int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
   // drm_gem_cma_mmap()
   printk(KERN_INFO "fake_disp mmap\n");
-  udelay(1000000);
+  msleep(500);
   return drm_gem_cma_mmap(filp, vma);
 }
 
@@ -210,7 +210,7 @@ int fake_disp_gem_dumb_create(struct drm_file* file,
                               struct drm_device* dev,
                               struct drm_mode_create_dumb* args) {
   printk(KERN_INFO "fake_disp gem_dumb_create\n");
-  udelay(1000000);
+  msleep(500);
   return drm_gem_cma_dumb_create(file, dev, args);
 }
 
@@ -219,7 +219,7 @@ int fake_disp_gem_dumb_map_offset(struct drm_file* file,
                                   uint32_t handle,
                                   uint64_t* offset) {
   printk(KERN_INFO "fake_disp gem_dumb_mmap_offset\n");
-  udelay(1000000);
+  msleep(500);
   return drm_gem_dumb_map_offset(file, dev, handle, offset);
 }
 
@@ -227,13 +227,13 @@ int fake_disp_gem_dumb_destroy(struct drm_file* file_priv,
                                struct drm_device* dev,
                                uint32_t handle) {
   printk(KERN_INFO "fake_disp gem_dumb_destroy\n");
-  udelay(1000000);
+  msleep(500);
   return 0;
 }
 
 void fake_disp_gem_free_object(struct drm_gem_object* gem_obj) {
   printk(KERN_INFO "fake_disp gem_free_object\n");
-  udelay(1000000);
+  msleep(500);
   drm_gem_cma_free_object(gem_obj);
 }
 
@@ -259,7 +259,7 @@ static struct drm_framebuffer* fake_disp_user_framebuffer_create(
     struct drm_file* filp,
     const struct drm_mode_fb_cmd2* mode_cmd) {
   printk(KERN_INFO "framebuffer create!\n");
-  udelay(1000000);
+  msleep(500);
   return NULL;
 }
 

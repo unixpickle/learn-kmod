@@ -33,60 +33,53 @@ static struct fake_disp_state state;
 
 // CRTC
 
-static void fake_disp_crtc_dpms(struct drm_crtc* crtc, int mode) {
-  printk(KERN_INFO "fake_disp crtc_dpms(%d)\n", mode);
+static enum drm_mode_status fake_disp_crtc_mode_valid(
+    struct drm_crtc* crtc,
+    const struct drm_display_mode* mode) {
+  return fake_disp_conn_mode_valid(NULL, mode);
 }
 
-static int fake_disp_crtc_mode_set_base(struct drm_crtc* crtc,
-                                        int x,
-                                        int y,
-                                        struct drm_framebuffer* old_fb) {
-  printk(KERN_INFO "fake_disp crtc_mode_set_base\n");
-  return 0;
+static void fake_disp_crtc_mode_set_nofb(struct drm_crtc* crtc) {}
+
+static void fake_disp_crtc_atomic_enable(struct drm_crtc* crtc,
+                                         struct drm_crtc_state* old_state) {
+  printk(KERN_INFO "fake_disp crtc_atomic_enable");
 }
 
-static int fake_disp_crtc_mode_set(struct drm_crtc* crtc,
-                                   struct drm_display_mode* mode,
-                                   struct drm_display_mode* adjusted_mode,
-                                   int x,
-                                   int y,
-                                   struct drm_framebuffer* old_fb) {
-  printk(KERN_INFO "fake_disp crtc_mode_set\n");
-  return 0;
+static void fake_disp_crtc_atomic_disable(struct drm_crtc* crtc,
+                                          struct drm_crtc_state* old_state) {
+  printk(KERN_INFO "fake_disp crtc_atomic_disable");
 }
 
-static void fake_disp_crtc_nop(struct drm_crtc* crtc) {
-  printk(KERN_INFO "fake_disp crtc_nop\n");
-}
-
-static int fake_disp_crtc_page_flip(struct drm_crtc* crtc,
-                                    struct drm_framebuffer* fb,
-                                    struct drm_pending_vblank_event* event,
-                                    uint32_t page_flip_flags,
-                                    struct drm_modeset_acquire_ctx* ctx) {
-  printk(KERN_INFO "fake_disp crtc_page_flip\n");
-  unsigned long flags;
-  crtc->primary->fb = fb;
+static void fake_disp_crtc_atomic_begin(struct drm_crtc* crtc,
+                                        struct drm_crtc_state* state) {
+  printk(KERN_INFO "fake_disp crtc_atomic_begin");
+  struct drm_pending_vblank_event* event = crtc->state->event;
   if (event) {
-    spin_lock_irqsave(&state.device->event_lock, flags);
+    crtc->state->event = NULL;
+    spin_lock_irq(&crtc->dev->event_lock);
     drm_crtc_send_vblank_event(crtc, event);
-    spin_unlock_irqrestore(&state.device->event_lock, flags);
+    spin_unlock_irq(&crtc->dev->event_lock);
   }
-  return 0;
 }
 
 static const struct drm_crtc_funcs fake_disp_crtc_funcs = {
-    .set_config = drm_crtc_helper_set_config,
     .destroy = drm_crtc_cleanup,
-    .page_flip = fake_disp_crtc_page_flip,
+    .set_config = drm_atomic_helper_set_config,
+    .page_flip = drm_atomic_helper_page_flip,
+    .reset = drm_atomic_helper_crtc_reset,
+    .atomic_duplicate_state = drm_atomic_helper_crtc_duplicate_state,
+    .atomic_destroy_state = drm_atomic_helper_crtc_destroy_state,
 };
 
 static const struct drm_crtc_helper_funcs fake_disp_crtc_helper_funcs = {
-    .dpms = fake_disp_crtc_dpms,
-    .mode_set = fake_disp_crtc_mode_set,
-    .mode_set_base = fake_disp_crtc_mode_set_base,
-    .prepare = fake_disp_crtc_nop,
-    .commit = fake_disp_crtc_nop,
+    .mode_valid = fake_disp_crtc_mode_valid,
+    .mode_set = drm_helper_crtc_mode_set,
+    .mode_set_base = drm_helper_crtc_mode_set_base,
+    .mode_set_nofb = fake_disp_crtc_mode_set_nofb,
+    .atomic_begin = fake_disp_crtc_atomic_begin,
+    .atomic_enable = fake_disp_crtc_atomic_enable,
+    .atomic_disable = fake_disp_crtc_atomic_disable,
 };
 
 // Connector
@@ -222,7 +215,7 @@ void fake_disp_gem_free_object(struct drm_gem_object* gem_obj) {
 }
 
 static struct drm_driver fake_disp_driver = {
-    .driver_features = DRIVER_GEM | DRIVER_MODESET,
+    .driver_features = DRIVER_GEM | DRIVER_MODESET | DRIVER_ATOMIC,
     .fops = &fake_disp_fops,
     .name = "fake_disp",
     .desc = "fake display interface",
@@ -295,6 +288,7 @@ static int __init fake_disp_init(void) {
   if (res) {
     goto fail_1;
   }
+  state.crtc.enabled = true;
   drm_crtc_helper_add(&state.crtc, &fake_disp_crtc_helper_funcs);
 
   res = drm_encoder_init(state.device, &state.encoder, &fake_disp_enc_funcs,

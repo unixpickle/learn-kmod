@@ -32,7 +32,7 @@ static struct fake_disp_state state;
 // CRTC
 
 static void fake_disp_crtc_dpms(struct drm_crtc* crtc, int mode) {
-  printk(KERN_INFO "fake_disp crtc_dpms\n");
+  printk(KERN_INFO "fake_disp crtc_dpms(%d)\n", mode);
 }
 
 static int fake_disp_crtc_mode_set_base(struct drm_crtc* crtc,
@@ -159,7 +159,7 @@ int fake_disp_open(struct inode* inode, struct file* filp) {
 
 long fake_disp_ioctl(struct file* filp, unsigned int cmd, unsigned long arg) {
   long res = drm_ioctl(filp, cmd, arg);
-  printk(KERN_INFO "fake_disp ioctl(%d) -> %ld.\n", cmd, res);
+  printk(KERN_INFO "fake_disp ioctl(%d) -> %ld\n", cmd, res);
   return res;
 }
 
@@ -167,12 +167,12 @@ long fake_disp_compat_ioctl(struct file* filp,
                             unsigned int cmd,
                             unsigned long arg) {
   long res = drm_compat_ioctl(filp, cmd, arg);
-  printk(KERN_INFO "fake_disp compat_ioctl(%d) -> %ld.\n", cmd, res);
+  printk(KERN_INFO "fake_disp compat_ioctl(%d) -> %ld\n", cmd, res);
   return res;
 }
 
 int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
-  printk(KERN_INFO "fake_disp mmap\n");
+  printk(KERN_INFO "fake_disp mmap(%lu)\n", vma->vm_pgoff);
   return drm_gem_cma_mmap(filp, vma);
 }
 
@@ -199,8 +199,9 @@ int fake_disp_gem_dumb_map_offset(struct drm_file* file,
                                   struct drm_device* dev,
                                   uint32_t handle,
                                   uint64_t* offset) {
-  printk(KERN_INFO "fake_disp gem_dumb_mmap_offset\n");
-  return drm_gem_dumb_map_offset(file, dev, handle, offset);
+  int res = drm_gem_dumb_map_offset(file, dev, handle, offset);
+  printk(KERN_INFO "fake_disp gem_dumb_mmap_offset() -> %llu\n", *offset);
+  return res;
 }
 
 int fake_disp_gem_dumb_destroy(struct drm_file* file_priv,

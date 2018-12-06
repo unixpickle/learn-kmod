@@ -240,8 +240,13 @@ static struct drm_framebuffer* fake_disp_user_framebuffer_create(
     struct drm_file* filp,
     const struct drm_mode_fb_cmd2* mode_cmd) {
   struct drm_framebuffer* res = drm_gem_fb_create(dev, filp, mode_cmd);
-  printk(KERN_INFO "framebuffer create -> %p %dx%d (pid=%d)\n", res, res->width,
-         res->height, task_pid_nr(current));
+  if (IS_ERR(res)) {
+    printk(KERN_INFO "framebuffer create failed -> %d (pid=%d)\n", PTR_ERR(res),
+           task_pid_nr(current));
+  } else {
+    printk(KERN_INFO "framebuffer create -> %p %dx%d (pid=%d)\n", res,
+           res->width, res->height, task_pid_nr(current));
+  }
   return res;
 }
 

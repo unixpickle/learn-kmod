@@ -211,7 +211,8 @@ int fake_disp_gem_dumb_create(struct drm_file* file,
                               struct drm_mode_create_dumb* args) {
   printk(KERN_INFO "fake_disp gem_dumb_create\n");
   msleep(500);
-  return drm_gem_cma_dumb_create(file, dev, args);
+  return -ENOMEM;
+  // return drm_gem_cma_dumb_create(file, dev, args);
 }
 
 int fake_disp_gem_dumb_map_offset(struct drm_file* file,

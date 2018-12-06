@@ -327,8 +327,9 @@ static int __init fake_disp_init(void) {
     goto fail_5;
   }
 
-  printk("fake_disp num connector %d (conn status should be 1 %d)\n",
-         state.device->mode_config.num_connector, state.connector.status);
+  printk("fake_disp num connector %d num crtc (conn status should be 1 %d)\n",
+         state.device->mode_config.num_connector,
+         state.device->mode_config.num_crtc, state.connector.status);
   state.fbdev = drm_fbdev_cma_init(state.device, 24, 1);
   if (IS_ERR(state.fbdev)) {
     res = PTR_ERR(state.fbdev);

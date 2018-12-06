@@ -165,6 +165,11 @@ static struct drm_encoder* fake_disp_conn_best_encoder(
   return &state.encoder;
 }
 
+static void fake_disp_drm_connector_destroy(struct drm_connector* connector) {
+  drm_connector_unregister(connector);
+  drm_connector_cleanup(connector);
+}
+
 static const struct drm_connector_helper_funcs fake_disp_conn_helper_funcs = {
     .get_modes = fake_disp_conn_get_modes,
     .mode_valid = fake_disp_conn_mode_valid,
@@ -173,8 +178,11 @@ static const struct drm_connector_helper_funcs fake_disp_conn_helper_funcs = {
 
 static const struct drm_connector_funcs fake_disp_conn_funcs = {
     .dpms = drm_helper_connector_dpms,
+    .reset = drm_atomic_helper_connector_reset,
     .fill_modes = drm_helper_probe_single_connector_modes,
-    .destroy = drm_connector_cleanup,
+    .destroy = fake_disp_drm_connector_destroy,
+    .atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
+    .atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
 };
 
 // Encoder

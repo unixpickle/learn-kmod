@@ -279,7 +279,7 @@ static int __init fake_disp_init(void) {
   state.device->mode_config.min_height = 0;
   state.device->mode_config.max_width = WIDTH;
   state.device->mode_config.max_height = HEIGHT;
-  state.device->mode_config.num_connector = 1;
+  // state.device->mode_config.num_connector = 0;
   // state.device->mode_config.preferred_depth = 24;
   // state.device->mode_config.prefer_shadow = 0;
   state.device->mode_config.funcs = &bs_funcs;
@@ -320,6 +320,8 @@ static int __init fake_disp_init(void) {
     goto fail_5;
   }
 
+  printk("fake_disp num connector %d\n",
+         state.device->mode_config.num_connector);
   state.fbdev = drm_fbdev_cma_init(state.device, 24, 1);
   drm_kms_helper_poll_init(state.device);
 

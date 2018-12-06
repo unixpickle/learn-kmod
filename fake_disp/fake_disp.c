@@ -5,6 +5,7 @@
 #include <drm/drm_encoder.h>
 #include <drm/drm_gem.h>
 #include <drm/drm_gem_cma_helper.h>
+#include <drm/drm_gem_framebuffer_helper.h>
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -252,7 +253,7 @@ static struct drm_driver fake_disp_driver = {
     .dumb_destroy = fake_disp_gem_dumb_destroy,
 };
 
-// Module lifecycle
+// Framebuffers
 
 static struct drm_framebuffer* fake_disp_user_framebuffer_create(
     struct drm_device* dev,
@@ -260,12 +261,14 @@ static struct drm_framebuffer* fake_disp_user_framebuffer_create(
     const struct drm_mode_fb_cmd2* mode_cmd) {
   printk(KERN_INFO "framebuffer create!\n");
   schedule_timeout_interruptible(nsecs_to_jiffies64(500000000));
-  return NULL;
+  return drm_gem_fb_create(dev, filp, mode_cmd);
 }
 
 const struct drm_mode_config_funcs bs_funcs = {
     .fb_create = fake_disp_user_framebuffer_create,
 };
+
+// Module lifecycle
 
 static int __init fake_disp_init(void) {
   int res;

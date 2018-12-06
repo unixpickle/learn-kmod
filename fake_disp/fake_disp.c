@@ -98,8 +98,8 @@ static int fake_disp_conn_get_modes(struct drm_connector* connector) {
 static enum drm_mode_status fake_disp_conn_mode_valid(
     struct drm_connector* connector,
     struct drm_display_mode* mode) {
-  printk(KERN_INFO "fake_disp conn_mode_valid %d %d\n", mode->hdisplay,
-         mode->vdisplay);
+  printk(KERN_INFO "fake_disp conn_mode_valid %d %d (pid=%d)\n", mode->hdisplay,
+         mode->vdisplay, task_pid_nr(current));
   if (mode->hdisplay != WIDTH || mode->vdisplay != HEIGHT) {
     return MODE_BAD;
   }
@@ -172,7 +172,8 @@ long fake_disp_compat_ioctl(struct file* filp,
 }
 
 int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
-  printk(KERN_INFO "fake_disp mmap(%lu)\n", vma->vm_pgoff);
+  printk(KERN_INFO "fake_disp mmap(%lu) (pid=%d)\n", vma->vm_pgoff,
+         task_pid_nr(current));
   return drm_gem_cma_mmap(filp, vma);
 }
 

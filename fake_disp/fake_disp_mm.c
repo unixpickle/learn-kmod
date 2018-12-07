@@ -28,9 +28,7 @@ static int fake_disp_gem_alloc_pages(struct fake_disp_gem_object* obj,
   size_t total = 0;
   while (total < size) {
     struct fake_disp_page* page;
-    printk(KERN_INFO "fake_disp allocating page...\n");
     struct page* raw_page = alloc_page(GFP_HIGHUSER);
-    printk(KERN_INFO "fake_disp allocated page!\n");
     if (!raw_page) {
       fake_disp_gem_free_pages(obj);
       return -ENOMEM;
@@ -73,6 +71,7 @@ static struct drm_gem_object* fake_disp_gem_create(
   if (!obj) {
     return ERR_PTR(-ENOMEM);
   }
+  INIT_LIST_HEAD(&obj->pages);
 
   res = drm_gem_object_init(dev, &obj->base, args->size);
   if (res) {

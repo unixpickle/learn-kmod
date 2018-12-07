@@ -105,7 +105,15 @@ int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
 
   res = remap_vmalloc_range(vma, obj->memory, 0);
   if (res) {
-    printk(KERN_WARNING "fake_disp: remap_pfn_range() -> %d\n", res);
+    struct vm_struct* area;
+    area = find_vm_area(obj->memory);
+    printk(KERN_WARNING "fake_disp: ptr %p area %p\n", obj->memory, area);
+    if (area) {
+      printk(KERN_WARNING "fake_disp: area %lu %lu %lu\n",
+             (area->flags & VM_USERMAP), area->size,
+             vma->vm_end - vma->vm_start);
+    }
+    printk(KERN_WARNING "fake_disp: remap_vmalloc_range() -> %d\n", res);
     drm_gem_vm_close(vma);
     return res;
   }

@@ -12,8 +12,8 @@ struct fake_disp_gem_object {
 };
 
 static void fake_disp_gem_free_pages(struct fake_disp_gem_object* obj) {
-  printk(KERN_INFO "fake_disp: gem_free_pages()\n");
   struct list_head* next_page = obj->pages.next;
+  printk(KERN_INFO "fake_disp: gem_free_pages()\n");
   while (next_page != &obj->pages) {
     struct fake_disp_page* page =
         list_entry(next_page, struct fake_disp_page, list);

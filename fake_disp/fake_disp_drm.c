@@ -87,11 +87,35 @@ static const struct drm_crtc_helper_funcs fake_disp_crtc_helper_funcs = {
 
 // Connector
 
+static const struct drm_display_mode fake_disp_mode = {
+    // https://elixir.bootlin.com/linux/v3.12.58/source/drivers/gpu/drm/drm_edid.c#L678
+    DRM_MODE("1920x1080",
+             DRM_MODE_TYPE_DRIVER,
+             148500,
+             1920,
+             2008,
+             2052,
+             2200,
+             0,
+             1080,
+             1084,
+             1089,
+             1125,
+             0,
+             DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
+    .vrefresh = 60,
+};
+
 static int fake_disp_conn_get_modes(struct drm_connector* connector) {
-  int res = drm_add_modes_noedid(connector, WIDTH, HEIGHT);
+  struct drm_display_mode* mode;
+  printk(KERN_INFO "fake_disp: conn_get_modes");
+  mode = drm_mode_duplicate(connector->dev, &fake_disp_mode);
+  if (!mode) {
+    return 0;
+  }
+  drm_mode_probed_add(connector, mode);
   drm_set_preferred_mode(connector, WIDTH, HEIGHT);
-  printk(KERN_INFO "fake_disp: conn_get_modes %d\n", res);
-  return res;
+  return 1;
 }
 
 static enum drm_mode_status fake_disp_conn_mode_valid(

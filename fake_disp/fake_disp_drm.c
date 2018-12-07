@@ -6,7 +6,7 @@ static const u32 fake_disp_plane_format = DRM_FORMAT_RGB888;
 
 static void fake_disp_plane_atomic_update(struct drm_plane* plane,
                                           struct drm_plane_state* state) {
-  printk("fake_disp plane_atomic_update (pid=%d)\n", task_pid_nr(current));
+  printk("fake_disp: plane_atomic_update (pid=%d)\n", task_pid_nr(current));
 }
 
 static const struct drm_plane_helper_funcs fake_disp_plane_helper_funcs = {
@@ -27,32 +27,32 @@ static const struct drm_plane_funcs fake_disp_plane_funcs = {
 static enum drm_mode_status fake_disp_crtc_mode_valid(
     struct drm_crtc* crtc,
     const struct drm_display_mode* mode) {
-  printk(KERN_INFO "fake_disp crtc_mode_valid %d %d (pid=%d)\n", mode->hdisplay,
-         mode->vdisplay, task_pid_nr(current));
+  printk(KERN_INFO "fake_disp: crtc_mode_valid %d %d (pid=%d)\n",
+         mode->hdisplay, mode->vdisplay, task_pid_nr(current));
   return MODE_OK;
 }
 
 static void fake_disp_crtc_mode_set_nofb(struct drm_crtc* crtc) {
-  printk(KERN_INFO "fake_disp crtc_mode_set_nofb (pid=%d)\n",
+  printk(KERN_INFO "fake_disp: crtc_mode_set_nofb (pid=%d)\n",
          task_pid_nr(current));
 }
 
 static void fake_disp_crtc_atomic_enable(struct drm_crtc* crtc,
                                          struct drm_crtc_state* old_state) {
-  printk(KERN_INFO "fake_disp crtc_atomic_enable (pid=%d)\n",
+  printk(KERN_INFO "fake_disp: crtc_atomic_enable (pid=%d)\n",
          task_pid_nr(current));
 }
 
 static void fake_disp_crtc_atomic_disable(struct drm_crtc* crtc,
                                           struct drm_crtc_state* old_state) {
-  printk(KERN_INFO "fake_disp crtc_atomic_disable (pid=%d)\n",
+  printk(KERN_INFO "fake_disp: crtc_atomic_disable (pid=%d)\n",
          task_pid_nr(current));
 }
 
 static void fake_disp_crtc_atomic_begin(struct drm_crtc* crtc,
                                         struct drm_crtc_state* state) {
   struct drm_pending_vblank_event* event;
-  printk(KERN_INFO "fake_disp crtc_atomic_begin (pid=%d)\n",
+  printk(KERN_INFO "fake_disp: crtc_atomic_begin (pid=%d)\n",
          task_pid_nr(current));
   event = crtc->state->event;
   if (event) {
@@ -87,15 +87,15 @@ static const struct drm_crtc_helper_funcs fake_disp_crtc_helper_funcs = {
 static int fake_disp_conn_get_modes(struct drm_connector* connector) {
   int res = drm_add_modes_noedid(connector, WIDTH, HEIGHT);
   drm_set_preferred_mode(connector, WIDTH, HEIGHT);
-  printk(KERN_INFO "fake_disp conn_get_modes %d\n", res);
+  printk(KERN_INFO "fake_disp: conn_get_modes %d\n", res);
   return res;
 }
 
 static enum drm_mode_status fake_disp_conn_mode_valid(
     struct drm_connector* connector,
     struct drm_display_mode* mode) {
-  printk(KERN_INFO "fake_disp conn_mode_valid %d %d (pid=%d)\n", mode->hdisplay,
-         mode->vdisplay, task_pid_nr(current));
+  printk(KERN_INFO "fake_disp: conn_mode_valid %d %d (pid=%d)\n",
+         mode->hdisplay, mode->vdisplay, task_pid_nr(current));
   return MODE_OK;
 }
 
@@ -129,15 +129,15 @@ static const struct drm_connector_funcs fake_disp_conn_funcs = {
 static void fake_disp_enc_mode_set(struct drm_encoder* encoder,
                                    struct drm_display_mode* mode,
                                    struct drm_display_mode* adjusted_mode) {
-  printk(KERN_INFO "fake_disp enc_mode_set\n");
+  printk(KERN_INFO "fake_disp: enc_mode_set\n");
 }
 
 static void fake_disp_enc_dpms(struct drm_encoder* encoder, int state) {
-  printk(KERN_INFO "fake_disp enc_dpms\n");
+  printk(KERN_INFO "fake_disp: enc_dpms\n");
 }
 
 static void fake_disp_enc_nop(struct drm_encoder* encoder) {
-  printk(KERN_INFO "fake_disp enc_nop\n");
+  printk(KERN_INFO "fake_disp: enc_nop\n");
 }
 
 static const struct drm_encoder_helper_funcs fake_disp_enc_helper_funcs = {
@@ -167,7 +167,8 @@ static struct drm_mode_config_funcs fake_disp_mode_config_funcs = {
 // Driver
 
 static int fake_disp_open(struct inode* inode, struct file* filp) {
-  printk(KERN_INFO "fake_disp open() called (pid=%d).\n", task_pid_nr(current));
+  printk(KERN_INFO "fake_disp: open() called (pid=%d).\n",
+         task_pid_nr(current));
   return drm_open(inode, filp);
 }
 
@@ -175,7 +176,7 @@ static long fake_disp_ioctl(struct file* filp,
                             unsigned int cmd,
                             unsigned long arg) {
   long res = drm_ioctl(filp, cmd, arg);
-  printk(KERN_INFO "fake_disp ioctl(%d) -> %ld\n", cmd, res);
+  printk(KERN_INFO "fake_disp: ioctl(%d) -> %ld\n", cmd, res);
   return res;
 }
 
@@ -183,7 +184,7 @@ static long fake_disp_compat_ioctl(struct file* filp,
                                    unsigned int cmd,
                                    unsigned long arg) {
   long res = drm_compat_ioctl(filp, cmd, arg);
-  printk(KERN_INFO "fake_disp compat_ioctl(%d) -> %ld\n", cmd, res);
+  printk(KERN_INFO "fake_disp: compat_ioctl(%d) -> %ld\n", cmd, res);
   return res;
 }
 

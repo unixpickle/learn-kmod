@@ -33,7 +33,7 @@ static int fake_disp_gem_alloc_pages(struct fake_disp_gem_object* obj,
       fake_disp_gem_free_pages(obj);
       return -ENOMEM;
     }
-    page = kmalloc(sizeof(struct fake_disp_page), 0);
+    page = kmalloc(sizeof(struct fake_disp_page), GFP_KERNEL);
     if (!page) {
       __free_page(raw_page);
       fake_disp_gem_free_pages(obj);
@@ -64,7 +64,7 @@ static struct drm_gem_object* fake_disp_gem_create(
   printk(KERN_INFO "fake_disp gem_dumb_create (size=%lld) (pid=%d)\n",
          args->size, task_pid_nr(current));
 
-  obj = kmalloc(sizeof(struct fake_disp_gem_object), 0);
+  obj = kmalloc(sizeof(struct fake_disp_gem_object), GFP_KERNEL);
   if (!obj) {
     return ERR_PTR(-ENOMEM);
   }

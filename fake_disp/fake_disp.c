@@ -390,12 +390,12 @@ static int __init fake_disp_init(void) {
   }
 
   drm_mode_config_reset(state.device);
-  // state.fbdev = drm_fbdev_cma_init(state.device, 24, 1);
-  // if (IS_ERR(state.fbdev)) {
-  //   res = PTR_ERR(state.fbdev);
-  //   goto fail_7;
-  // }
-  // drm_kms_helper_poll_init(state.device);
+  state.fbdev = drm_fbdev_cma_init(state.device, 24, 1);
+  if (IS_ERR(state.fbdev)) {
+    res = PTR_ERR(state.fbdev);
+    goto fail_7;
+  }
+  drm_kms_helper_poll_init(state.device);
 
   return 0;
 

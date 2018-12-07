@@ -157,7 +157,7 @@ static void fake_disp_output_poll_changed(struct drm_device* dev) {
   drm_fbdev_cma_hotplug_event(fake_disp_get_state()->fbdev);
 }
 
-const struct drm_mode_config_funcs fake_disp_mode_config_funcs = {
+static struct drm_mode_config_funcs fake_disp_mode_config_funcs = {
     .fb_create = fake_disp_user_framebuffer_create,
     .output_poll_changed = fake_disp_output_poll_changed,
     .atomic_check = drm_atomic_helper_check,

@@ -205,9 +205,6 @@ struct drm_framebuffer* fake_disp_user_framebuffer_create(
     struct drm_device* dev,
     struct drm_file* filp,
     const struct drm_mode_fb_cmd2* mode_cmd) {
-  if (mode_cmd->width == 1 || mode_cmd->height == 1) {
-    return ERR_PTR(-EINVAL);
-  }
   struct drm_framebuffer* res;
   int err;
 

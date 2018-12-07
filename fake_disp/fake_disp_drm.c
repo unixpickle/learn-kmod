@@ -1,38 +1,4 @@
-#include <drm/drm_atomic_helper.h>
-#include <drm/drm_connector.h>
-#include <drm/drm_crtc.h>
-#include <drm/drm_crtc_helper.h>
-#include <drm/drm_drv.h>
-#include <drm/drm_encoder.h>
-#include <drm/drm_fb_cma_helper.h>
-#include <drm/drm_gem.h>
-#include <drm/drm_gem_cma_helper.h>
-#include <drm/drm_gem_framebuffer_helper.h>
-#include <drm/drm_plane_helper.h>
-#include <linux/delay.h>
-#include <linux/init.h>
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/pid.h>
-
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Alex Nichol");
-MODULE_DESCRIPTION("A fake external monitor.");
-MODULE_VERSION("0.01");
-
-#define WIDTH 1920
-#define HEIGHT 1080
-
-struct fake_disp_state {
-  struct drm_device* device;
-  struct drm_plane plane;
-  struct drm_crtc crtc;
-  struct drm_encoder encoder;
-  struct drm_connector connector;
-  struct drm_fbdev_cma* fbdev;
-};
-
-static struct fake_disp_state state;
+#include "fake_disp.h"
 
 // Planes
 
@@ -63,9 +29,6 @@ static enum drm_mode_status fake_disp_crtc_mode_valid(
     const struct drm_display_mode* mode) {
   printk(KERN_INFO "fake_disp crtc_mode_valid %d %d (pid=%d)\n", mode->hdisplay,
          mode->vdisplay, task_pid_nr(current));
-  // if (mode->hdisplay != WIDTH || mode->vdisplay != HEIGHT) {
-  //   return MODE_BAD;
-  // }
   return MODE_OK;
 }
 
@@ -133,15 +96,12 @@ static enum drm_mode_status fake_disp_conn_mode_valid(
     struct drm_display_mode* mode) {
   printk(KERN_INFO "fake_disp conn_mode_valid %d %d (pid=%d)\n", mode->hdisplay,
          mode->vdisplay, task_pid_nr(current));
-  // if (mode->hdisplay != WIDTH || mode->vdisplay != HEIGHT) {
-  //   return MODE_BAD;
-  // }
   return MODE_OK;
 }
 
 static struct drm_encoder* fake_disp_conn_best_encoder(
     struct drm_connector* connector) {
-  return &state.encoder;
+  return &fake_disp_get_state()->encoder;
 }
 
 static void fake_disp_drm_connector_destroy(struct drm_connector* connector) {
@@ -191,6 +151,19 @@ static const struct drm_encoder_funcs fake_disp_enc_funcs = {
     .destroy = drm_encoder_cleanup,
 };
 
+// Mode config
+
+static void fake_disp_output_poll_changed(struct drm_device* dev) {
+  drm_fbdev_cma_hotplug_event(fake_disp_get_state()->fbdev);
+}
+
+static struct drm_mode_config_funcs fake_disp_mode_config_funcs = {
+    .fb_create = fake_disp_user_framebuffer_create,
+    .output_poll_changed = fake_disp_output_poll_changed,
+    .atomic_check = drm_atomic_helper_check,
+    .atomic_commit = drm_atomic_helper_commit,
+};
+
 // Driver
 
 static int fake_disp_open(struct inode* inode, struct file* filp) {
@@ -214,12 +187,6 @@ static long fake_disp_compat_ioctl(struct file* filp,
   return res;
 }
 
-static int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
-  printk(KERN_INFO "fake_disp mmap(%lu) (pid=%d)\n", vma->vm_pgoff,
-         task_pid_nr(current));
-  return drm_gem_cma_mmap(filp, vma);
-}
-
 static const struct file_operations fake_disp_fops = {
     .owner = THIS_MODULE,
     .open = fake_disp_open,
@@ -232,34 +199,10 @@ static const struct file_operations fake_disp_fops = {
     .mmap = fake_disp_mmap,
 };
 
-static int fake_disp_gem_dumb_create(struct drm_file* file,
-                                     struct drm_device* dev,
-                                     struct drm_mode_create_dumb* args) {
-  printk(KERN_INFO "fake_disp gem_dumb_create (pid=%d)\n",
-         task_pid_nr(current));
-  return drm_gem_cma_dumb_create(file, dev, args);
-}
-
-static int fake_disp_gem_dumb_map_offset(struct drm_file* file,
-                                         struct drm_device* dev,
-                                         uint32_t handle,
-                                         uint64_t* offset) {
-  int res = drm_gem_dumb_map_offset(file, dev, handle, offset);
-  printk(KERN_INFO "fake_disp gem_dumb_mmap_offset() -> %llu\n", *offset);
-  return res;
-}
-
-static int fake_disp_gem_dumb_destroy(struct drm_file* file_priv,
-                                      struct drm_device* dev,
-                                      uint32_t handle) {
-  printk(KERN_INFO "fake_disp gem_dumb_destroy\n");
-  return 0;
-}
-
-static void fake_disp_gem_free_object(struct drm_gem_object* gem_obj) {
-  printk(KERN_INFO "fake_disp gem_free_object\n");
-  drm_gem_cma_free_object(gem_obj);
-}
+static const struct vm_operations_struct fake_disp_gem_vm_ops = {
+    .open = drm_gem_vm_open,
+    .close = drm_gem_vm_close,
+};
 
 static struct drm_driver fake_disp_driver = {
     .driver_features = DRIVER_GEM | DRIVER_MODESET | DRIVER_ATOMIC,
@@ -269,151 +212,109 @@ static struct drm_driver fake_disp_driver = {
     .date = "20181205",
     .major = 1,
     .minor = 0,
-    .gem_vm_ops = &drm_gem_cma_vm_ops,
+    .gem_vm_ops = &fake_disp_gem_vm_ops,
     .gem_free_object_unlocked = fake_disp_gem_free_object,
     .dumb_create = fake_disp_gem_dumb_create,
     .dumb_map_offset = fake_disp_gem_dumb_map_offset,
     .dumb_destroy = fake_disp_gem_dumb_destroy,
 };
 
-// Framebuffers
+// Lifecycle
 
-static struct drm_framebuffer* fake_disp_user_framebuffer_create(
-    struct drm_device* dev,
-    struct drm_file* filp,
-    const struct drm_mode_fb_cmd2* mode_cmd) {
-  struct drm_framebuffer* res;
-  printk(KERN_INFO "fake_disp creating framebuffer (pid=%d)\n",
-         task_pid_nr(current));
-  res = drm_gem_fb_create(dev, filp, mode_cmd);
-  if (IS_ERR(res)) {
-    printk(KERN_INFO "fake_disp framebuffer create failed -> %ld (pid=%d)\n",
-           PTR_ERR(res), task_pid_nr(current));
-  } else {
-    printk(KERN_INFO "fake_disp framebuffer create -> %p %dx%d (pid=%d)\n", res,
-           res->width, res->height, task_pid_nr(current));
-  }
-  return res;
-}
-
-static void fake_disp_output_poll_changed(struct drm_device* dev) {
-  drm_fbdev_cma_hotplug_event(state.fbdev);
-}
-
-const struct drm_mode_config_funcs bs_funcs = {
-    .fb_create = fake_disp_user_framebuffer_create,
-    .output_poll_changed = fake_disp_output_poll_changed,
-    .atomic_check = drm_atomic_helper_check,
-    .atomic_commit = drm_atomic_helper_commit,
-};
-
-// Module lifecycle
-
-extern unsigned int drm_debug;
-
-static int __init fake_disp_init(void) {
-  // Enable this to see a ton of log messages.
-  // drm_debug = 0xffffffff;
+int fake_disp_setup_drm(void) {
   int res;
+  struct fake_disp_state* state = fake_disp_get_state();
 
-  state.device = drm_dev_alloc(&fake_disp_driver, NULL);
-  if (IS_ERR(state.device)) {
-    return PTR_ERR(state.device);
+  state->device = drm_dev_alloc(&fake_disp_driver, NULL);
+  if (IS_ERR(state->device)) {
+    return PTR_ERR(state->device);
   }
 
-  drm_mode_config_init(state.device);
-  state.device->mode_config.min_width = 0;
-  state.device->mode_config.min_height = 0;
-  state.device->mode_config.max_width = WIDTH;
-  state.device->mode_config.max_height = HEIGHT;
-  // state.device->mode_config.num_connector = 0;
-  // state.device->mode_config.preferred_depth = 24;
-  // state.device->mode_config.prefer_shadow = 0;
-  state.device->mode_config.funcs = &bs_funcs;
+  drm_mode_config_init(state->device);
+  state->device->mode_config.min_width = 0;
+  state->device->mode_config.min_height = 0;
+  state->device->mode_config.max_width = WIDTH;
+  state->device->mode_config.max_height = HEIGHT;
+  state->device->mode_config.funcs = &fake_disp_mode_config_funcs;
 
   res = drm_universal_plane_init(
-      state.device, &state.plane, 0xff, &fake_disp_plane_funcs,
+      state->device, &state->plane, 0xff, &fake_disp_plane_funcs,
       &fake_disp_plane_format, 1, NULL, DRM_PLANE_TYPE_PRIMARY, NULL);
   if (res) {
     goto fail_1;
   }
-  drm_plane_helper_add(&state.plane, &fake_disp_plane_helper_funcs);
+  drm_plane_helper_add(&state->plane, &fake_disp_plane_helper_funcs);
 
-  res = drm_crtc_init_with_planes(state.device, &state.crtc, &state.plane, NULL,
-                                  &fake_disp_crtc_funcs, NULL);
+  res = drm_crtc_init_with_planes(state->device, &state->crtc, &state->plane,
+                                  NULL, &fake_disp_crtc_funcs, NULL);
   if (res) {
     goto fail_2;
   }
-  state.crtc.enabled = true;
-  drm_crtc_helper_add(&state.crtc, &fake_disp_crtc_helper_funcs);
+  state->crtc.enabled = true;
+  drm_crtc_helper_add(&state->crtc, &fake_disp_crtc_helper_funcs);
 
-  res = drm_encoder_init(state.device, &state.encoder, &fake_disp_enc_funcs,
+  res = drm_encoder_init(state->device, &state->encoder, &fake_disp_enc_funcs,
                          DRM_MODE_ENCODER_VIRTUAL, NULL);
+  state->encoder.possible_crtcs = 1;
   if (res) {
     goto fail_3;
   }
-  drm_encoder_helper_add(&state.encoder, &fake_disp_enc_helper_funcs);
+  drm_encoder_helper_add(&state->encoder, &fake_disp_enc_helper_funcs);
 
-  res = drm_connector_init(state.device, &state.connector,
+  res = drm_connector_init(state->device, &state->connector,
                            &fake_disp_conn_funcs, DRM_MODE_CONNECTOR_VIRTUAL);
   if (res) {
     goto fail_4;
   }
-  state.connector.status = connector_status_connected;
-  drm_connector_helper_add(&state.connector, &fake_disp_conn_helper_funcs);
+  state->connector.status = connector_status_connected;
+  drm_connector_helper_add(&state->connector, &fake_disp_conn_helper_funcs);
 
-  res = drm_mode_connector_attach_encoder(&state.connector, &state.encoder);
+  res = drm_mode_connector_attach_encoder(&state->connector, &state->encoder);
   if (res) {
     goto fail_5;
   }
 
-  res = drm_dev_register(state.device, 0);
+  res = drm_dev_register(state->device, 0);
   if (res) {
     goto fail_5;
   }
 
-  res = drm_connector_register(&state.connector);
+  res = drm_connector_register(&state->connector);
   if (res) {
     goto fail_6;
   }
 
-  drm_mode_config_reset(state.device);
-  state.fbdev = drm_fbdev_cma_init(state.device, 24, 1);
-  if (IS_ERR(state.fbdev)) {
-    res = PTR_ERR(state.fbdev);
-    goto fail_7;
-  }
-  drm_kms_helper_poll_init(state.device);
+  // Seems to prevent a NULL pointer dereference.
+  drm_mode_config_reset(state->device);
 
   return 0;
 
-fail_7:
-  drm_connector_unregister(&state.connector);
 fail_6:
-  drm_dev_unregister(state.device);
+  drm_dev_unregister(state->device);
 fail_5:
-  drm_connector_cleanup(&state.connector);
+  drm_connector_cleanup(&state->connector);
 fail_4:
-  drm_encoder_cleanup(&state.encoder);
+  drm_encoder_cleanup(&state->encoder);
 fail_3:
-  drm_crtc_cleanup(&state.crtc);
+  drm_crtc_cleanup(&state->crtc);
 fail_2:
-  drm_plane_cleanup(&state.plane);
+  drm_plane_cleanup(&state->plane);
 fail_1:
-  drm_mode_config_cleanup(state.device);
-  drm_dev_put(state.device);
+  drm_mode_config_cleanup(state->device);
+  drm_dev_put(state->device);
+
   return res;
 }
 
-static void __exit fake_disp_exit(void) {
-  drm_connector_unregister(&state.connector);
-  drm_dev_unregister(state.device);
-  drm_connector_cleanup(&state.connector);
-  drm_encoder_cleanup(&state.encoder);
-  drm_crtc_cleanup(&state.crtc);
-  drm_mode_config_cleanup(state.device);
-  drm_dev_put(state.device);
+void fake_disp_destroy_drm(void) {
+  // TODO: deregister helpers?
+  struct fake_disp_state* state = fake_disp_get_state();
+  drm_connector_unregister(&state->connector);
+  drm_dev_unregister(state->device);
+  drm_connector_cleanup(&state->connector);
+  drm_encoder_cleanup(&state->encoder);
+  drm_crtc_cleanup(&state->crtc);
+  drm_plane_cleanup(&state->plane);
+  drm_mode_config_cleanup(state->device);
+  drm_dev_put(state->device);
 }
-
-module_init(fake_disp_init);
-module_exit(fake_disp_exit);

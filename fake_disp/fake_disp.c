@@ -358,6 +358,7 @@ static int __init fake_disp_init(void) {
   state.crtc.enabled = true;
   drm_crtc_helper_add(&state.crtc, &fake_disp_crtc_helper_funcs);
 
+  state.encoder.possible_crtcs = 1;
   res = drm_encoder_init(state.device, &state.encoder, &fake_disp_enc_funcs,
                          DRM_MODE_ENCODER_VIRTUAL, NULL);
   if (res) {

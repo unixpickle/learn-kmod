@@ -136,6 +136,12 @@ int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
     return res;
   }
 
+  // Allow us to use vm_insert_page().
+  vma->vm_flags &= ~VM_PFNMAP;
+
+  // This is fake, so let's disregard it.
+  vma->vm_pgoff = 0;
+
   gem_obj = vma->vm_private_data;
   obj = container_of(gem_obj, struct fake_disp_gem_object, base);
 

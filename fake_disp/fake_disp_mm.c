@@ -31,7 +31,6 @@ static struct drm_gem_object* fake_disp_gem_create(
   if (!obj) {
     return ERR_PTR(-ENOMEM);
   }
-  INIT_LIST_HEAD(&obj->pages);
 
   res = drm_gem_object_init(dev, &obj->base, args->size);
   if (res) {

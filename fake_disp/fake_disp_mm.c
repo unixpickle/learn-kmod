@@ -208,8 +208,8 @@ struct drm_framebuffer* fake_disp_user_framebuffer_create(
   struct drm_framebuffer* res;
   int err;
 
-  printk(KERN_INFO "fake_disp: creating framebuffer (pid=%d)\n",
-         task_pid_nr(current));
+  printk(KERN_INFO "fake_disp: creating framebuffer %dx%d (pid=%d)\n",
+         mode_cmd->width, mode_cmd->height, task_pid_nr(current));
 
   res = kzalloc(sizeof(struct drm_framebuffer), GFP_KERNEL);
   if (!res) {

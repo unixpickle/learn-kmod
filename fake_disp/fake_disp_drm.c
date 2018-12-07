@@ -284,6 +284,8 @@ int fake_disp_setup_drm(void) {
     goto fail_6;
   }
 
+  drm_mode_config_reset(state.device);
+
   return 0;
 
 fail_6:

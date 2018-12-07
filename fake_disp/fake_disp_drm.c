@@ -56,10 +56,13 @@ static void fake_disp_crtc_atomic_begin(struct drm_crtc* crtc,
          task_pid_nr(current));
   event = crtc->state->event;
   if (event) {
+    printk(KERN_INFO "fake_disp: crtc_atomic_begin has event\n");
     crtc->state->event = NULL;
     spin_lock_irq(&crtc->dev->event_lock);
     drm_crtc_send_vblank_event(crtc, event);
     spin_unlock_irq(&crtc->dev->event_lock);
+  } else {
+    printk(KERN_INFO "fake_disp: crtc_atomic_begin has no event\n");
   }
 }
 

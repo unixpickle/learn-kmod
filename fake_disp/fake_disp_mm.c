@@ -192,20 +192,36 @@ void fake_disp_gem_free_object(struct drm_gem_object* gem_obj) {
   kfree(obj);
 }
 
+static void fake_disp_user_framebuffer_destroy(struct drm_framebuffer* fb) {
+  drm_framebuffer_cleanup(fb);
+  kfree(fb);
+}
+
+static const struct drm_framebuffer_funcs fake_disp_fb_funcs = {
+    .destroy = fake_disp_user_framebuffer_destroy,
+};
+
 struct drm_framebuffer* fake_disp_user_framebuffer_create(
     struct drm_device* dev,
     struct drm_file* filp,
     const struct drm_mode_fb_cmd2* mode_cmd) {
   struct drm_framebuffer* res;
+  int err;
+
   printk(KERN_INFO "fake_disp: creating framebuffer (pid=%d)\n",
          task_pid_nr(current));
-  res = drm_gem_fb_create(dev, filp, mode_cmd);
-  if (IS_ERR(res)) {
-    printk(KERN_INFO "fake_disp: framebuffer create failed -> %ld (pid=%d)\n",
-           PTR_ERR(res), task_pid_nr(current));
-  } else {
-    printk(KERN_INFO "fake_disp: framebuffer create -> %p %dx%d (pid=%d)\n",
-           res, res->width, res->height, task_pid_nr(current));
+
+  res = kzalloc(sizeof(struct drm_framebuffer), GFP_KERNEL);
+  if (!res) {
+    return ERR_PTR(-ENOMEM);
   }
+
+  drm_helper_mode_fill_fb_struct(dev, res, mode_cmd);
+  err = drm_framebuffer_init(dev, res, &fake_disp_fb_funcs);
+  if (err) {
+    kfree(res);
+    return ERR_PTR(err);
+  }
+
   return res;
 }

@@ -219,6 +219,7 @@ struct drm_framebuffer* fake_disp_user_framebuffer_create(
   drm_helper_mode_fill_fb_struct(dev, res, mode_cmd);
   err = drm_framebuffer_init(dev, res, &fake_disp_fb_funcs);
   if (err) {
+    printk(KERN_INFO "fake_disp: drm_framebuffer_init() -> %d\n", err);
     kfree(res);
     return ERR_PTR(err);
   }

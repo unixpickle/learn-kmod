@@ -42,7 +42,7 @@ static struct drm_gem_object* fake_disp_gem_create(
     goto fail_2;
   }
 
-  obj->memory = vmalloc(args->size);
+  obj->memory = vmalloc_user(args->size);
   if (!obj->memory) {
     res = -ENOMEM;
     goto fail_3;

@@ -3,10 +3,10 @@
 
 struct fake_disp_page {
   struct page* page;
-  list_head list;
+  struct list_head list;
 };
 
-struct fake_disp_gem_object struct {
+struct fake_disp_gem_object {
   struct drm_gem_object base;
   struct list_head pages;
 };
@@ -27,19 +27,20 @@ static int fake_disp_gem_alloc_pages(struct fake_disp_gem_object* obj,
                                      size_t size) {
   size_t total = 0;
   while (total < size) {
-    struct page* raw_page = alloc_page();
+    struct fake_disp_page* page;
+    struct page* raw_page = alloc_page(0);
     if (!raw_page) {
       fake_disp_gem_free_pages(obj);
       return -ENOMEM;
     }
-    struct fake_disp_page* page = kmalloc(sizeof(struct fake_disp_page), 0);
+    page = kmalloc(sizeof(struct fake_disp_page), 0);
     if (!page) {
       __free_page(raw_page);
       fake_disp_gem_free_pages(obj);
       return -ENOMEM;
     }
-    page->page = page;
-    list_add(&page->list, &obj.pages);
+    page->page = raw_page;
+    list_add(&page->list, &obj->pages);
     total += PAGE_SIZE;
   }
   return 0;
@@ -48,12 +49,11 @@ static int fake_disp_gem_alloc_pages(struct fake_disp_gem_object* obj,
 static struct drm_gem_object* fake_disp_gem_create(
     struct drm_device* dev,
     struct drm_mode_create_dumb* args) {
-  printk(KERN_INFO "fake_disp gem_dumb_create (pid=%d)\n",
-         task_pid_nr(current));
   struct fake_disp_gem_object* obj;
   int res;
+  unsigned int min_pitch;
 
-  unsigned int min_pitch = DIV_ROUND_UP(args->width * args->bpp, 8);
+  min_pitch = DIV_ROUND_UP(args->width * args->bpp, 8);
   if (args->pitch < min_pitch) {
     args->pitch = min_pitch;
   }
@@ -61,7 +61,14 @@ static struct drm_gem_object* fake_disp_gem_create(
     args->size = args->pitch * args->height;
   }
 
+  printk(KERN_INFO "fake_disp gem_dumb_create (size=%lld) (pid=%d)\n",
+         args->size, task_pid_nr(current));
+
   obj = kmalloc(sizeof(struct fake_disp_gem_object), 0);
+  if (!obj) {
+    return ERR_PTR(-ENOMEM);
+  }
+
   res = drm_gem_object_init(dev, &obj->base, args->size);
   if (res) {
     goto fail_1;
@@ -89,7 +96,7 @@ fail_1:
   return ERR_PTR(res);
 }
 
-static int fask_disp_gem_create_handle(struct drm_file* file_priv,
+static int fake_disp_gem_create_handle(struct drm_file* file_priv,
                                        struct drm_device* dev,
                                        struct drm_mode_create_dumb* args,
                                        u32* handle) {
@@ -129,8 +136,7 @@ int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
   obj = container_of(gem_obj, struct fake_disp_gem_object, base);
 
   list_for_each_entry_reverse(next_page, &obj->pages, list) {
-    res = remap_pfn_range(vma, vma->vm_start + offset,
-                          page_to_phys(next_page->page), PAGE_SIZE, 0);
+    res = vm_insert_page(vma, vma->vm_start + offset, next_page->page);
     if (res) {
       printk(KERN_WARNING "fake_disp remap_pfn_range() -> %d\n", res);
       drm_gem_vm_close(vma);
@@ -147,7 +153,7 @@ int fake_disp_gem_dumb_create(struct drm_file* file_priv,
                               struct drm_mode_create_dumb* args) {
   printk(KERN_INFO "fake_disp gem_dumb_create (pid=%d)\n",
          task_pid_nr(current));
-  return fake_disp_gem_create_handle(file_priv, dev, args, &args > handle);
+  return fake_disp_gem_create_handle(file_priv, dev, args, &args->handle);
 }
 
 int fake_disp_gem_dumb_map_offset(struct drm_file* file,

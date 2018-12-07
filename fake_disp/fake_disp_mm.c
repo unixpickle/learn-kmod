@@ -64,7 +64,7 @@ static struct drm_gem_object* fake_disp_gem_create(
     args->size += PAGE_SIZE - (args->size % PAGE_SIZE);
   }
 
-  printk(KERN_INFO "fake_disp gem_create (size=%lld) (pid=%d)\n", args->size,
+  printk(KERN_INFO "fake_disp: gem_create (size=%lld) (pid=%d)\n", args->size,
          task_pid_nr(current));
 
   obj = kzalloc(sizeof(struct fake_disp_gem_object), GFP_KERNEL);
@@ -128,7 +128,7 @@ int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
   struct drm_gem_object* gem_obj;
   struct fake_disp_gem_object* obj;
 
-  printk(KERN_INFO "fake_disp mmap(%lu) (pid=%d)\n", vma->vm_pgoff,
+  printk(KERN_INFO "fake_disp: mmap(%lu) (pid=%d)\n", vma->vm_pgoff,
          task_pid_nr(current));
 
   res = drm_gem_mmap(filp, vma);
@@ -148,7 +148,7 @@ int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
   list_for_each_entry_reverse(next_page, &obj->pages, list) {
     res = vm_insert_page(vma, vma->vm_start + offset, next_page->page);
     if (res) {
-      printk(KERN_WARNING "fake_disp remap_pfn_range() -> %d\n", res);
+      printk(KERN_WARNING "fake_disp: remap_pfn_range() -> %d\n", res);
       drm_gem_vm_close(vma);
       return res;
     }
@@ -161,7 +161,7 @@ int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
 int fake_disp_gem_dumb_create(struct drm_file* file_priv,
                               struct drm_device* dev,
                               struct drm_mode_create_dumb* args) {
-  printk(KERN_INFO "fake_disp gem_dumb_create (pid=%d)\n",
+  printk(KERN_INFO "fake_disp: gem_dumb_create (pid=%d)\n",
          task_pid_nr(current));
   return fake_disp_gem_create_handle(file_priv, dev, args, &args->handle);
 }
@@ -171,14 +171,14 @@ int fake_disp_gem_dumb_map_offset(struct drm_file* file,
                                   uint32_t handle,
                                   uint64_t* offset) {
   int res = drm_gem_dumb_map_offset(file, dev, handle, offset);
-  printk(KERN_INFO "fake_disp gem_dumb_mmap_offset() -> %llu\n", *offset);
+  printk(KERN_INFO "fake_disp: gem_dumb_mmap_offset() -> %llu\n", *offset);
   return res;
 }
 
 int fake_disp_gem_dumb_destroy(struct drm_file* file_priv,
                                struct drm_device* dev,
                                uint32_t handle) {
-  printk(KERN_INFO "fake_disp gem_dumb_destroy\n");
+  printk(KERN_INFO "fake_disp: gem_dumb_destroy\n");
   return drm_gem_dumb_destroy(file_priv, dev, handle);
 }
 
@@ -196,15 +196,15 @@ struct drm_framebuffer* fake_disp_user_framebuffer_create(
     struct drm_file* filp,
     const struct drm_mode_fb_cmd2* mode_cmd) {
   struct drm_framebuffer* res;
-  printk(KERN_INFO "fake_disp creating framebuffer (pid=%d)\n",
+  printk(KERN_INFO "fake_disp: creating framebuffer (pid=%d)\n",
          task_pid_nr(current));
   res = drm_gem_fb_create(dev, filp, mode_cmd);
   if (IS_ERR(res)) {
-    printk(KERN_INFO "fake_disp framebuffer create failed -> %ld (pid=%d)\n",
+    printk(KERN_INFO "fake_disp: framebuffer create failed -> %ld (pid=%d)\n",
            PTR_ERR(res), task_pid_nr(current));
   } else {
-    printk(KERN_INFO "fake_disp framebuffer create -> %p %dx%d (pid=%d)\n", res,
-           res->width, res->height, task_pid_nr(current));
+    printk(KERN_INFO "fake_disp: framebuffer create -> %p %dx%d (pid=%d)\n",
+           res, res->width, res->height, task_pid_nr(current));
   }
   return res;
 }

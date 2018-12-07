@@ -15,7 +15,7 @@ static void fake_disp_gem_free_pages(struct fake_disp_gem_object* obj) {
   struct list_head* next_page = obj->pages.next;
   while (next_page != &obj->pages) {
     struct fake_disp_page* page =
-        container_of(next_page, struct fake_disp_page, list);
+        list_entry(next_page, struct fake_disp_page, list);
     next_page = next_page->next;
     __free_page(page->page);
     kfree(page);
@@ -111,9 +111,35 @@ static int fask_disp_gem_create_handle(struct drm_file* file_priv,
 }
 
 int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
+  int res;
+  size_t offset = 0;
+  struct fake_disp_page* next_page;
+  struct drm_gem_object* gem_obj;
+  struct fake_disp_gem_object* obj;
+
   printk(KERN_INFO "fake_disp mmap(%lu) (pid=%d)\n", vma->vm_pgoff,
          task_pid_nr(current));
-  return drm_gem_cma_mmap(filp, vma);
+
+  res = drm_gem_mmap(filp, vma);
+  if (res) {
+    return res;
+  }
+
+  gem_obj = vma->vm_private_data;
+  obj = container_of(gem_obj, struct fake_disp_gem_object, base);
+
+  list_for_each_entry_reverse(next_page, &obj->pages, list) {
+    res = remap_pfn_range(vma, vma->vm_start + offset,
+                          page_to_phys(next_page->page), PAGE_SIZE, 0);
+    if (res) {
+      printk(KERN_WARNING "fake_disp remap_pfn_range() -> %d\n", res);
+      drm_gem_vm_close(vma);
+      return res;
+    }
+    offset += PAGE_SIZE;
+  }
+
+  return 0;
 }
 
 int fake_disp_gem_dumb_create(struct drm_file* file_priv,

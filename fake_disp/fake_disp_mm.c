@@ -29,7 +29,7 @@ static int fake_disp_gem_alloc_pages(struct fake_disp_gem_object* obj,
   while (total < size) {
     struct fake_disp_page* page;
     printk(KERN_INFO "fake_disp allocating page...\n");
-    struct page* raw_page = alloc_page(0);
+    struct page* raw_page = alloc_page(GFP_HIGHUSER);
     printk(KERN_INFO "fake_disp allocated page!\n");
     if (!raw_page) {
       fake_disp_gem_free_pages(obj);

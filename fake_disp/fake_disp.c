@@ -383,10 +383,10 @@ static int __init fake_disp_init(void) {
     goto fail_5;
   }
 
-  res = drm_connector_register(&state.connector);
-  if (res) {
-    goto fail_6;
-  }
+  // res = drm_connector_register(&state.connector);
+  // if (res) {
+  //   goto fail_6;
+  // }
 
   drm_mode_config_reset(state.device);
   state.fbdev = drm_fbdev_cma_init(state.device, 24, 1);
@@ -399,7 +399,7 @@ static int __init fake_disp_init(void) {
   return 0;
 
 fail_7:
-  drm_connector_unregister(&state.connector);
+  // drm_connector_unregister(&state.connector);
 fail_6:
   drm_dev_unregister(state.device);
 fail_5:
@@ -417,7 +417,7 @@ fail_1:
 }
 
 static void __exit fake_disp_exit(void) {
-  drm_connector_unregister(&state.connector);
+  // drm_connector_unregister(&state.connector);
   drm_dev_unregister(state.device);
   drm_connector_cleanup(&state.connector);
   drm_encoder_cleanup(&state.encoder);

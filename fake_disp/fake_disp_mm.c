@@ -223,5 +223,8 @@ struct drm_framebuffer* fake_disp_user_framebuffer_create(
     return ERR_PTR(err);
   }
 
+  printk(KERN_INFO "fake_disp: created framebuffer of size %dx%d\n", res->width,
+         res->height);
+
   return res;
 }

@@ -60,9 +60,12 @@ static struct drm_gem_object* fake_disp_gem_create(
   if (args->size < args->pitch * args->height) {
     args->size = args->pitch * args->height;
   }
+  if (args->size % PAGE_SIZE) {
+    args->size += PAGE_SIZE - (args->size % PAGE_SIZE);
+  }
 
-  printk(KERN_INFO "fake_disp gem_dumb_create (size=%lld) (pid=%d)\n",
-         args->size, task_pid_nr(current));
+  printk(KERN_INFO "fake_disp gem_create (size=%lld) (pid=%d)\n", args->size,
+         task_pid_nr(current));
 
   obj = kmalloc(sizeof(struct fake_disp_gem_object), GFP_KERNEL);
   if (!obj) {

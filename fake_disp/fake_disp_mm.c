@@ -1,51 +1,10 @@
 #include <linux/gfp.h>
 #include "fake_disp.h"
 
-struct fake_disp_page {
-  struct page* page;
-  struct list_head list;
-};
-
 struct fake_disp_gem_object {
   struct drm_gem_object base;
-  struct list_head pages;
+  void* memory;
 };
-
-static void fake_disp_gem_free_pages(struct fake_disp_gem_object* obj) {
-  struct list_head* next_page = obj->pages.next;
-  printk(KERN_INFO "fake_disp: gem_free_pages()\n");
-  while (next_page != &obj->pages) {
-    struct fake_disp_page* page =
-        list_entry(next_page, struct fake_disp_page, list);
-    next_page = next_page->next;
-    __free_page(page->page);
-    kfree(page);
-  }
-  INIT_LIST_HEAD(&obj->pages);
-}
-
-static int fake_disp_gem_alloc_pages(struct fake_disp_gem_object* obj,
-                                     size_t size) {
-  size_t total = 0;
-  while (total < size) {
-    struct fake_disp_page* page;
-    struct page* raw_page = alloc_page(GFP_HIGHUSER);
-    if (!raw_page) {
-      fake_disp_gem_free_pages(obj);
-      return -ENOMEM;
-    }
-    page = kzalloc(sizeof(struct fake_disp_page), GFP_KERNEL);
-    if (!page) {
-      __free_page(raw_page);
-      fake_disp_gem_free_pages(obj);
-      return -ENOMEM;
-    }
-    page->page = raw_page;
-    list_add(&page->list, &obj->pages);
-    total += PAGE_SIZE;
-  }
-  return 0;
-}
 
 static struct drm_gem_object* fake_disp_gem_create(
     struct drm_device* dev,
@@ -84,8 +43,9 @@ static struct drm_gem_object* fake_disp_gem_create(
     goto fail_2;
   }
 
-  res = fake_disp_gem_alloc_pages(obj, args->size);
-  if (res) {
+  obj->memory = vmalloc(args->size);
+  if (!obj->memory) {
+    res = -ENOMEM;
     goto fail_3;
   }
 
@@ -124,8 +84,6 @@ static int fake_disp_gem_create_handle(struct drm_file* file_priv,
 
 int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
   int res;
-  size_t offset = 0;
-  struct fake_disp_page* next_page;
   struct drm_gem_object* gem_obj;
   struct fake_disp_gem_object* obj;
 
@@ -146,14 +104,11 @@ int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
   gem_obj = vma->vm_private_data;
   obj = container_of(gem_obj, struct fake_disp_gem_object, base);
 
-  list_for_each_entry_reverse(next_page, &obj->pages, list) {
-    res = vm_insert_page(vma, vma->vm_start + offset, next_page->page);
-    if (res) {
-      printk(KERN_WARNING "fake_disp: remap_pfn_range() -> %d\n", res);
-      drm_gem_vm_close(vma);
-      return res;
-    }
-    offset += PAGE_SIZE;
+  res = remap_vmalloc_range(vma, obj->memory, 0);
+  if (res) {
+    printk(KERN_WARNING "fake_disp: remap_pfn_range() -> %d\n", res);
+    drm_gem_vm_close(vma);
+    return res;
   }
 
   return 0;
@@ -186,7 +141,7 @@ int fake_disp_gem_dumb_destroy(struct drm_file* file_priv,
 void fake_disp_gem_free_object(struct drm_gem_object* gem_obj) {
   struct fake_disp_gem_object* obj =
       container_of(gem_obj, struct fake_disp_gem_object, base);
-  fake_disp_gem_free_pages(obj);
+  vfree(obj->memory);
   drm_gem_free_mmap_offset(gem_obj);
   drm_gem_object_release(gem_obj);
   kfree(obj);

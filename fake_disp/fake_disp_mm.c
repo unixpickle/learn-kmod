@@ -6,6 +6,8 @@ struct fake_disp_gem_object* fake_disp_gem_create(struct drm_device* dev,
   struct fake_disp_gem_object* obj;
   int res;
 
+  size = PAGE_ALIGNED(size);
+
   printk(KERN_INFO "fake_disp: gem_create (size=%ld) (pid=%d)\n", size,
          task_pid_nr(current));
 
@@ -109,9 +111,6 @@ int fake_disp_gem_dumb_create(struct drm_file* file_priv,
   }
   if (args->size < args->pitch * args->height) {
     args->size = args->pitch * args->height;
-  }
-  if (args->size % PAGE_SIZE) {
-    args->size += PAGE_SIZE - (args->size % PAGE_SIZE);
   }
   return fake_disp_gem_create_handle(file_priv, dev, (size_t)args->size,
                                      &args->handle);

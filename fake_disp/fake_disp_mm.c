@@ -1,50 +1,10 @@
 #include <linux/gfp.h>
 #include "fake_disp.h"
 
-struct fake_disp_page {
-  struct page* page;
-  struct list_head list;
-};
-
 struct fake_disp_gem_object {
   struct drm_gem_object base;
-  struct list_head pages;
+  void* memory;
 };
-
-static void fake_disp_gem_free_pages(struct fake_disp_gem_object* obj) {
-  struct list_head* next_page = obj->pages.next;
-  while (next_page != &obj->pages) {
-    struct fake_disp_page* page =
-        list_entry(next_page, struct fake_disp_page, list);
-    next_page = next_page->next;
-    __free_page(page->page);
-    kfree(page);
-  }
-  INIT_LIST_HEAD(&obj->pages);
-}
-
-static int fake_disp_gem_alloc_pages(struct fake_disp_gem_object* obj,
-                                     size_t size) {
-  size_t total = 0;
-  while (total < size) {
-    struct fake_disp_page* page;
-    struct page* raw_page = alloc_page(GFP_HIGHUSER);
-    if (!raw_page) {
-      fake_disp_gem_free_pages(obj);
-      return -ENOMEM;
-    }
-    page = kzalloc(sizeof(struct fake_disp_page), GFP_KERNEL);
-    if (!page) {
-      __free_page(raw_page);
-      fake_disp_gem_free_pages(obj);
-      return -ENOMEM;
-    }
-    page->page = raw_page;
-    list_add(&page->list, &obj->pages);
-    total += PAGE_SIZE;
-  }
-  return 0;
-}
 
 static struct drm_gem_object* fake_disp_gem_create(
     struct drm_device* dev,
@@ -71,7 +31,6 @@ static struct drm_gem_object* fake_disp_gem_create(
   if (!obj) {
     return ERR_PTR(-ENOMEM);
   }
-  INIT_LIST_HEAD(&obj->pages);
 
   res = drm_gem_object_init(dev, &obj->base, args->size);
   if (res) {
@@ -83,8 +42,9 @@ static struct drm_gem_object* fake_disp_gem_create(
     goto fail_2;
   }
 
-  res = fake_disp_gem_alloc_pages(obj, args->size);
-  if (res) {
+  obj->memory = vmalloc_user(args->size);
+  if (!obj->memory) {
+    res = -ENOMEM;
     goto fail_3;
   }
 
@@ -123,8 +83,6 @@ static int fake_disp_gem_create_handle(struct drm_file* file_priv,
 
 int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
   int res;
-  size_t offset = 0;
-  struct fake_disp_page* next_page;
   struct drm_gem_object* gem_obj;
   struct fake_disp_gem_object* obj;
 
@@ -145,14 +103,11 @@ int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
   gem_obj = vma->vm_private_data;
   obj = container_of(gem_obj, struct fake_disp_gem_object, base);
 
-  list_for_each_entry_reverse(next_page, &obj->pages, list) {
-    res = vm_insert_page(vma, vma->vm_start + offset, next_page->page);
-    if (res) {
-      printk(KERN_WARNING "fake_disp: remap_pfn_range() -> %d\n", res);
-      drm_gem_vm_close(vma);
-      return res;
-    }
-    offset += PAGE_SIZE;
+  res = remap_vmalloc_range(vma, obj->memory, 0);
+  if (res) {
+    printk(KERN_WARNING "fake_disp: remap_pfn_range() -> %d\n", res);
+    drm_gem_vm_close(vma);
+    return res;
   }
 
   return 0;
@@ -185,26 +140,46 @@ int fake_disp_gem_dumb_destroy(struct drm_file* file_priv,
 void fake_disp_gem_free_object(struct drm_gem_object* gem_obj) {
   struct fake_disp_gem_object* obj =
       container_of(gem_obj, struct fake_disp_gem_object, base);
-  fake_disp_gem_free_pages(obj);
+  vfree(obj->memory);
   drm_gem_free_mmap_offset(gem_obj);
   drm_gem_object_release(gem_obj);
   kfree(obj);
 }
+
+static void fake_disp_user_framebuffer_destroy(struct drm_framebuffer* fb) {
+  drm_framebuffer_cleanup(fb);
+  kfree(fb);
+}
+
+static const struct drm_framebuffer_funcs fake_disp_fb_funcs = {
+    .destroy = fake_disp_user_framebuffer_destroy,
+};
 
 struct drm_framebuffer* fake_disp_user_framebuffer_create(
     struct drm_device* dev,
     struct drm_file* filp,
     const struct drm_mode_fb_cmd2* mode_cmd) {
   struct drm_framebuffer* res;
-  printk(KERN_INFO "fake_disp: creating framebuffer (pid=%d)\n",
-         task_pid_nr(current));
-  res = drm_gem_fb_create(dev, filp, mode_cmd);
-  if (IS_ERR(res)) {
-    printk(KERN_INFO "fake_disp: framebuffer create failed -> %ld (pid=%d)\n",
-           PTR_ERR(res), task_pid_nr(current));
-  } else {
-    printk(KERN_INFO "fake_disp: framebuffer create -> %p %dx%d (pid=%d)\n",
-           res, res->width, res->height, task_pid_nr(current));
+  int err;
+
+  printk(KERN_INFO "fake_disp: creating framebuffer %dx%d (pid=%d)\n",
+         mode_cmd->width, mode_cmd->height, task_pid_nr(current));
+
+  res = kzalloc(sizeof(struct drm_framebuffer), GFP_KERNEL);
+  if (!res) {
+    return ERR_PTR(-ENOMEM);
   }
+
+  drm_helper_mode_fill_fb_struct(dev, res, mode_cmd);
+  err = drm_framebuffer_init(dev, res, &fake_disp_fb_funcs);
+  if (err) {
+    printk(KERN_INFO "fake_disp: drm_framebuffer_init() -> %d\n", err);
+    kfree(res);
+    return ERR_PTR(err);
+  }
+
+  printk(KERN_INFO "fake_disp: created framebuffer of size %dx%d\n", res->width,
+         res->height);
+
   return res;
 }

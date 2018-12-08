@@ -1,5 +1,8 @@
 #include "fake_disp.h"
 
+// Based on
+// https://elixir.bootlin.com/linux/v4.15/source/drivers/gpu/drm/drm_fb_cma_helper.c
+
 // DRM framebuffers
 
 static struct drm_framebuffer_funcs fake_disp_fb_funcs = {
@@ -21,6 +24,7 @@ static struct fb_ops fake_disp_fb_ops = {
 static int fake_disp_fb_probe(struct drm_fb_helper* helper,
                               struct drm_fb_helper_surface_size* sizes) {
   struct fake_disp_gem_object* gem;
+  struct fb_info* fbi;
   struct fake_disp_state* state = fake_disp_get_state();
   unsigned int bytes_per_pixel = DIV_ROUND_UP(sizes->surface_bpp, 8);
   unsigned long offset;
@@ -41,10 +45,10 @@ static int fake_disp_fb_probe(struct drm_fb_helper* helper,
     return PTR_ERR(gem);
   }
 
-  state->fbdev_helper.fbdev = framebuffer_alloc(0, state->device->dev);
-  if (!state->fbdev_helper.fbdev) {
+  fbi = framebuffer_alloc(0, state->device->dev);
+  if (IS_ERR(fbi)) {
     printk(KERN_WARNING "fake_disp: failed to alloc fbi.\n");
-    res = -ENOMEM;
+    res = PTR_ERR(fbi);
     goto fail_1;
   }
 
@@ -57,20 +61,18 @@ static int fake_disp_fb_probe(struct drm_fb_helper* helper,
   }
 
   state->fbdev_helper.fb = state->fbdev_fb;
-  state->fbdev_helper.fbdev->par = helper;
-  state->fbdev_helper.fbdev->flags = FBINFO_FLAG_DEFAULT;
-  state->fbdev_helper.fbdev->fbops = &fake_disp_fb_ops;
+  fbi->par = helper;
+  fbi->flags = FBINFO_FLAG_DEFAULT;
+  fbi->fbops = &fake_disp_fb_ops;
 
-  drm_fb_helper_fill_fix(state->fbdev_helper.fbdev, state->fbdev_fb->pitches[0],
+  drm_fb_helper_fill_fix(fbi, state->fbdev_fb->pitches[0],
                          state->fbdev_fb->format->depth);
-  drm_fb_helper_fill_var(state->fbdev_helper.fbdev, helper, sizes->fb_width,
-                         sizes->fb_height);
+  drm_fb_helper_fill_var(fbi, helper, sizes->fb_width, sizes->fb_height);
 
-  offset = state->fbdev_helper.fbdev->var.xoffset * bytes_per_pixel;
-  offset +=
-      state->fbdev_helper.fbdev->var.yoffset * state->fbdev_fb->pitches[0];
-  state->fbdev_helper.fbdev->screen_base = gem->memory + offset;
-  state->fbdev_helper.fbdev->screen_size = size;
+  offset = fbi->var.xoffset * bytes_per_pixel;
+  offset += fbi->var.yoffset * state->fbdev_fb->pitches[0];
+  fbi->screen_base = gem->memory + offset;
+  fbi->screen_size = size;
 
   return 0;
 
@@ -92,7 +94,8 @@ int fake_disp_setup_fbdev(void) {
   int res;
   struct fake_disp_state* state = fake_disp_get_state();
 
-  state->fbdev_helper.funcs = &fake_disp_fb_helper_funcs;
+  drm_fb_helper_prepare(state->device, &state->fbdev_helper,
+                        &fake_disp_fb_helper_funcs);
 
   res = drm_fb_helper_init(state->device, &state->fbdev_helper, 1);
   if (res < 0) {

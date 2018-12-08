@@ -31,7 +31,6 @@ struct fake_disp_state {
 
   struct drm_fb_helper fbdev_helper;
   struct drm_framebuffer* fbdev_fb;
-  struct fake_disp_gem_object* fbdev_gem;
 };
 
 // fake_disp_main.c

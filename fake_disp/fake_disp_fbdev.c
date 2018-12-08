@@ -110,8 +110,6 @@ int fake_disp_setup_fbdev(void) {
     goto fail;
   }
 
-  drm_helper_disable_unused_functions(state->device);
-
   res = drm_fb_helper_initial_config(&state->fbdev_helper, 24);
   if (res < 0) {
     printk(KERN_WARNING "fake_disp: drm_fb_helper_initial_config() failed\n");

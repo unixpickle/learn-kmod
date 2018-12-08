@@ -30,7 +30,7 @@ struct fake_disp_state {
   struct drm_connector connector;
 
   struct drm_fb_helper fbdev_helper;
-  struct drm_framebuffer fbdev_fb;
+  struct drm_framebuffer* fbdev_fb;
   struct fake_disp_gem_object* fbdev_gem;
 };
 
@@ -65,5 +65,9 @@ struct drm_framebuffer* fake_disp_user_framebuffer_create(
 // fake_disp_drm.c
 int fake_disp_setup_drm(void);
 void fake_disp_destroy_drm(void);
+
+// fake_disp_fbdev.c
+int fake_disp_setup_fbdev(void);
+void fake_disp_destroy_fbdev(void);
 
 #endif

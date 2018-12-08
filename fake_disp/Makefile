@@ -1,9 +1,9 @@
 obj-m += fake_disp.o
-fake_disp-objs := fake_disp_main.o fake_disp_drm.o fake_disp_mm.o
+fake_disp-objs := fake_disp_main.o fake_disp_drm.o fake_disp_mm.o fake_disp_fbdev.o
 
 all: build/fake_disp.ko
 
-build/fake_disp.ko: fake_disp_main.c fake_disp_drm.c fake_disp_mm.c
+build/fake_disp.ko: fake_disp_main.c fake_disp_drm.c fake_disp_mm.c fake_disp_fbdev.c
 	rm -rf build
 	mkdir build
 	cp *.c *.h Makefile build

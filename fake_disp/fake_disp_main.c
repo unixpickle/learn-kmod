@@ -16,10 +16,20 @@ extern unsigned int drm_debug;
 static int __init fake_disp_init(void) {
   // Enable this to see a ton of log messages.
   // drm_debug = 0xffffffff;
-  return fake_disp_setup_drm();
+  int res = fake_disp_setup_drm();
+  if (res) {
+    return res;
+  }
+  res = fake_disp_setup_fbdev();
+  if (res) {
+    fake_disp_destroy_drm();
+    return res;
+  }
+  return 0;
 }
 
 static void __exit fake_disp_exit(void) {
+  fake_disp_destroy_fbdev();
   fake_disp_destroy_drm();
 }
 

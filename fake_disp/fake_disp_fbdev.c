@@ -45,7 +45,7 @@ static int fake_disp_fb_probe(struct drm_fb_helper* helper,
     return PTR_ERR(gem);
   }
 
-  fbi = framebuffer_alloc(0, state->device->dev);
+  fbi = drm_fb_helper_alloc_fbi(&state->fbdev_helper);
   if (IS_ERR(fbi)) {
     printk(KERN_WARNING "fake_disp: failed to alloc fbi.\n");
     res = PTR_ERR(fbi);

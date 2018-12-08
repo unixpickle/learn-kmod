@@ -1,30 +1,14 @@
 #include <linux/gfp.h>
 #include "fake_disp.h"
 
-struct fake_disp_gem_object {
-  struct drm_gem_object base;
-  void* memory;
-};
-
-static struct drm_gem_object* fake_disp_gem_create(
-    struct drm_device* dev,
-    struct drm_mode_create_dumb* args) {
+struct fake_disp_gem_object* fake_disp_gem_create(struct drm_device* dev,
+                                                  size_t size) {
   struct fake_disp_gem_object* obj;
   int res;
-  unsigned int min_pitch;
 
-  min_pitch = DIV_ROUND_UP(args->width * args->bpp, 8);
-  if (args->pitch < min_pitch) {
-    args->pitch = min_pitch;
-  }
-  if (args->size < args->pitch * args->height) {
-    args->size = args->pitch * args->height;
-  }
-  if (args->size % PAGE_SIZE) {
-    args->size += PAGE_SIZE - (args->size % PAGE_SIZE);
-  }
+  size = PAGE_ALIGN(size);
 
-  printk(KERN_INFO "fake_disp: gem_create (size=%lld) (pid=%d)\n", args->size,
+  printk(KERN_INFO "fake_disp: gem_create (size=%ld) (pid=%d)\n", size,
          task_pid_nr(current));
 
   obj = kzalloc(sizeof(struct fake_disp_gem_object), GFP_KERNEL);
@@ -32,7 +16,7 @@ static struct drm_gem_object* fake_disp_gem_create(
     return ERR_PTR(-ENOMEM);
   }
 
-  res = drm_gem_object_init(dev, &obj->base, args->size);
+  res = drm_gem_object_init(dev, &obj->base, size);
   if (res) {
     goto fail_1;
   }
@@ -42,13 +26,13 @@ static struct drm_gem_object* fake_disp_gem_create(
     goto fail_2;
   }
 
-  obj->memory = vmalloc_user(args->size);
+  obj->memory = vmalloc_user(size);
   if (!obj->memory) {
     res = -ENOMEM;
     goto fail_3;
   }
 
-  return &obj->base;
+  return obj;
 
 fail_3:
   drm_gem_free_mmap_offset(&obj->base);
@@ -62,22 +46,22 @@ fail_1:
 
 static int fake_disp_gem_create_handle(struct drm_file* file_priv,
                                        struct drm_device* dev,
-                                       struct drm_mode_create_dumb* args,
+                                       size_t size,
                                        u32* handle) {
   int res;
 
-  struct drm_gem_object* obj = fake_disp_gem_create(dev, args);
+  struct fake_disp_gem_object* obj = fake_disp_gem_create(dev, size);
   if (IS_ERR(obj)) {
     return PTR_ERR(obj);
   }
 
-  res = drm_gem_handle_create(file_priv, obj, handle);
+  res = drm_gem_handle_create(file_priv, &obj->base, handle);
   if (res) {
-    fake_disp_gem_free_object(obj);
+    fake_disp_gem_free_object(&obj->base);
     return res;
   }
 
-  drm_gem_object_put_unlocked(obj);
+  drm_gem_object_put_unlocked(&obj->base);
   return 0;
 }
 
@@ -116,9 +100,20 @@ int fake_disp_mmap(struct file* filp, struct vm_area_struct* vma) {
 int fake_disp_gem_dumb_create(struct drm_file* file_priv,
                               struct drm_device* dev,
                               struct drm_mode_create_dumb* args) {
+  unsigned int min_pitch;
+
   printk(KERN_INFO "fake_disp: gem_dumb_create (pid=%d)\n",
          task_pid_nr(current));
-  return fake_disp_gem_create_handle(file_priv, dev, args, &args->handle);
+
+  min_pitch = DIV_ROUND_UP(args->width * args->bpp, 8);
+  if (args->pitch < min_pitch) {
+    args->pitch = min_pitch;
+  }
+  if (args->size < args->pitch * args->height) {
+    args->size = args->pitch * args->height;
+  }
+  return fake_disp_gem_create_handle(file_priv, dev, (size_t)args->size,
+                                     &args->handle);
 }
 
 int fake_disp_gem_dumb_map_offset(struct drm_file* file,

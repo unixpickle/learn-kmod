@@ -6,7 +6,7 @@ struct fake_disp_gem_object* fake_disp_gem_create(struct drm_device* dev,
   struct fake_disp_gem_object* obj;
   int res;
 
-  size = PAGE_ALIGNED(size);
+  size = PAGE_ALIGN(size);
 
   printk(KERN_INFO "fake_disp: gem_create (size=%ld) (pid=%d)\n", size,
          task_pid_nr(current));

@@ -1,13 +1,8 @@
 #include <linux/gfp.h>
 #include "fake_disp.h"
 
-struct fake_disp_gem_object {
-  struct drm_gem_object base;
-  void* memory;
-};
-
-static struct drm_gem_object* fake_disp_gem_create(struct drm_device* dev,
-                                                   size_t size) {
+struct fake_disp_gem_object* fake_disp_gem_create(struct drm_device* dev,
+                                                  size_t size) {
   struct fake_disp_gem_object* obj;
   int res;
 
@@ -35,7 +30,7 @@ static struct drm_gem_object* fake_disp_gem_create(struct drm_device* dev,
     goto fail_3;
   }
 
-  return &obj->base;
+  return obj;
 
 fail_3:
   drm_gem_free_mmap_offset(&obj->base);
@@ -53,18 +48,18 @@ static int fake_disp_gem_create_handle(struct drm_file* file_priv,
                                        u32* handle) {
   int res;
 
-  struct drm_gem_object* obj = fake_disp_gem_create(dev, size);
+  struct fake_disp_gem_object* obj = fake_disp_gem_create(dev, size);
   if (IS_ERR(obj)) {
     return PTR_ERR(obj);
   }
 
-  res = drm_gem_handle_create(file_priv, obj, handle);
+  res = drm_gem_handle_create(file_priv, &obj->base, handle);
   if (res) {
-    fake_disp_gem_free_object(obj);
+    fake_disp_gem_free_object(&obj->base);
     return res;
   }
 
-  drm_gem_object_put_unlocked(obj);
+  drm_gem_object_put_unlocked(&obj->base);
   return 0;
 }
 

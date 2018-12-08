@@ -181,7 +181,7 @@ static const struct drm_encoder_funcs fake_disp_enc_funcs = {
 // Mode config
 
 static void fake_disp_output_poll_changed(struct drm_device* dev) {
-  drm_fbdev_cma_hotplug_event(fake_disp_get_state()->fbdev);
+  drm_fb_helper_hotplug_event(&fake_disp_get_state()->fbdev_helper);
 }
 
 static struct drm_mode_config_funcs fake_disp_mode_config_funcs = {

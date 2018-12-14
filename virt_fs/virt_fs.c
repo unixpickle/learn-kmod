@@ -2,6 +2,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/statfs.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Alex Nichol");
@@ -27,16 +28,16 @@ static struct dentry* virt_fs_mount(struct file_system_type* f,
   int res;
 
   if (state.root_dentry) {
-    return ERR_PTR(-EINUSE);
+    return ERR_PTR(-EINVAL);
   }
-  state.root_inode = alloc_inode(&state.sb);
+  state.root_inode = new_inode(&state.sb);
   if (!state.root_inode) {
     return ERR_PTR(-ENOMEM);
   }
 
   state.root_dentry = d_make_root(state.root_inode);
   if (IS_ERR(state.root_dentry)) {
-    res = PTR_ERR(state.root_entry);
+    res = PTR_ERR(state.root_dentry);
     goto fail_inode;
   }
 
@@ -49,11 +50,10 @@ fail_inode:
 
 static void virt_fs_kill_sb(struct super_block* sb) {
   iput(state.root_inode);
-  spin_lock(&state.root_dentry.d_lock);
-  dentry_kill(state.root_dentry);
+  dput(state.root_dentry);
 }
 
-static file_system_type fs_type = {
+static struct file_system_type fs_type = {
     .name = "virt_fs",
     .mount = virt_fs_mount,
     .kill_sb = virt_fs_kill_sb,
@@ -62,23 +62,24 @@ static file_system_type fs_type = {
 
 // Super block
 
-void virt_fs_statfs(struct dentry* entry, struct kstatfs* stats) {
+int virt_fs_statfs(struct dentry* entry, struct kstatfs* stats) {
   stats->f_bsize = 512;
-  stats->f_blocks = 1 << 33;
-  stats->f_bfree = 1 << 32;
-  stats->f_bavail = 1 << 32;
+  stats->f_blocks = 1L << 33;
+  stats->f_bfree = 1L << 32;
+  stats->f_bavail = 1L << 32;
   stats->f_files = 0;
-  stats->f_ffree = 1 << 41;
+  stats->f_ffree = 1L << 41;
+  return 0;
 }
 
 static struct super_operations super_ops = {
     .statfs = virt_fs_statfs,
 };
 
-static void setup_super_block() {
-  state.sb.s_blocksize_bits = 8 * 512;
+static void setup_super_block(void) {
+  state.sb.s_blocksize_bits = 9;
   state.sb.s_blocksize = 512;
-  state.sb.s_maxbytes = 1 << 32;
+  state.sb.s_maxbytes = ((u64)1) << 32;
   state.sb.s_type = &fs_type;
   state.sb.s_op = &super_ops;
 }

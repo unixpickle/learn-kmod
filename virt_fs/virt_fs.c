@@ -12,55 +12,16 @@ MODULE_VERSION("0.01");
 struct virt_fs_state {
   struct vfsmount* mnt;
 
-  struct super_block sb;
+  struct super_block* sb;
   struct dentry* root_dentry;
   struct inode* root_inode;
 };
 
 static struct virt_fs_state state;
 
-// File system type
-
-static struct dentry* virt_fs_mount(struct file_system_type* f,
-                                    int flags,
-                                    const char* dev_name,
-                                    void* data) {
-  int res;
-
-  if (state.root_dentry) {
-    return ERR_PTR(-EINVAL);
-  }
-  state.root_inode = new_inode(&state.sb);
-  if (!state.root_inode) {
-    return ERR_PTR(-ENOMEM);
-  }
-
-  state.root_dentry = d_make_root(state.root_inode);
-  if (IS_ERR(state.root_dentry)) {
-    res = PTR_ERR(state.root_dentry);
-    goto fail_inode;
-  }
-
-  return state.root_dentry;
-
-fail_inode:
-  iput(state.root_inode);
-  return ERR_PTR(res);
-}
-
-static void virt_fs_kill_sb(struct super_block* sb) {
-  iput(state.root_inode);
-  dput(state.root_dentry);
-}
-
-static struct file_system_type fs_type = {
-    .name = "virt_fs",
-    .mount = virt_fs_mount,
-    .kill_sb = virt_fs_kill_sb,
-    .owner = THIS_MODULE,
-};
-
 // Super block
+
+static struct file_system_type fs_type;
 
 int virt_fs_statfs(struct dentry* entry, struct kstatfs* stats) {
   stats->f_bsize = 512;
@@ -76,13 +37,64 @@ static struct super_operations super_ops = {
     .statfs = virt_fs_statfs,
 };
 
-static void setup_super_block(void) {
-  state.sb.s_blocksize_bits = 9;
-  state.sb.s_blocksize = 512;
-  state.sb.s_maxbytes = ((u64)1) << 32;
-  state.sb.s_type = &fs_type;
-  state.sb.s_op = &super_ops;
+static int virt_fs_fill_super(struct super_block* sb, void* data, int flags) {
+  int res;
+
+  if (state.sb) {
+    return -EINVAL;
+  }
+  state.sb = sb;
+
+  sb->s_blocksize_bits = 9;
+  sb->s_blocksize = 512;
+  sb->s_maxbytes = ((u64)1) << 32;
+  sb->s_type = &fs_type;
+  sb->s_op = &super_ops;
+
+  state.root_inode = new_inode(state.sb);
+  if (!state.root_inode) {
+    res = -ENOMEM;
+    goto fail_sb;
+  }
+
+  state.root_dentry = d_make_root(state.root_inode);
+  if (IS_ERR(state.root_dentry)) {
+    res = PTR_ERR(state.root_dentry);
+    goto fail_inode;
+  }
+
+  sb->s_root = state.root_dentry;
+
+  return 0;
+
+fail_inode:
+  iput(state.root_inode);
+fail_sb:
+  deactivate_locked_super(state.sb);
+  return res;
 }
+
+// File system type
+
+static struct dentry* virt_fs_mount(struct file_system_type* type,
+                                    int flags,
+                                    const char* dev_name,
+                                    void* data) {
+  return mount_single(type, flags, NULL, virt_fs_fill_super);
+}
+
+static void virt_fs_kill_sb(struct super_block* sb) {
+  iput(state.root_inode);
+  dput(state.root_dentry);
+  deactivate_locked_super(sb);
+}
+
+static struct file_system_type fs_type = {
+    .name = "virt_fs",
+    .mount = virt_fs_mount,
+    .kill_sb = virt_fs_kill_sb,
+    .owner = THIS_MODULE,
+};
 
 // Module lifecycle
 
@@ -91,7 +103,6 @@ static int __init virt_fs_init(void) {
   if (res) {
     return res;
   }
-  setup_super_block();
   return 0;
 }
 

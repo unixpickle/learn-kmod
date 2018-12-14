@@ -84,7 +84,6 @@ static struct dentry* virt_fs_mount(struct file_system_type* type,
 }
 
 static void virt_fs_kill_sb(struct super_block* sb) {
-  iput(state.root_inode);
   dput(state.root_dentry);
 }
 

@@ -56,6 +56,7 @@ static int virt_fs_fill_super(struct super_block* sb, void* data, int flags) {
     res = -ENOMEM;
     goto fail_sb;
   }
+  state.root_inode->i_mode = S_IFDIR;
 
   state.root_dentry = d_make_root(state.root_inode);
   if (IS_ERR(state.root_dentry)) {

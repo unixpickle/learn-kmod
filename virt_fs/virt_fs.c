@@ -19,6 +19,17 @@ struct virt_fs_state {
 
 static struct virt_fs_state state;
 
+// File operations
+
+int virt_fs_root_open(struct inode* inode, struct file* file) {
+  printk(KERN_INFO "virt_fs: root_open");
+  return -EBADF;
+}
+
+static struct file_operations root_fops = {
+    .open = virt_fs_root_open,
+};
+
 // Super block
 
 static struct file_system_type fs_type;
@@ -57,6 +68,7 @@ static int virt_fs_fill_super(struct super_block* sb, void* data, int flags) {
     goto fail_sb;
   }
   state.root_inode->i_mode = S_IFDIR;
+  state.root_inode->i_fop = &root_fops;
 
   state.root_dentry = d_make_root(state.root_inode);
   if (IS_ERR(state.root_dentry)) {

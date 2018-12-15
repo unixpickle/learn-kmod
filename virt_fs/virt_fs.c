@@ -116,6 +116,7 @@ static int virt_fs_fill_super(struct super_block* sb, void* data, int flags) {
   state.root_inode->i_opflags = IOP_LOOKUP;
   state.root_inode->i_fop = &root_fops;
   state.root_inode->i_op = &root_iops;
+  state.root_inode->i_ino = 0;
 
   state.root_dentry = d_make_root(state.root_inode);
   if (IS_ERR(state.root_dentry)) {
@@ -134,8 +135,7 @@ static int virt_fs_fill_super(struct super_block* sb, void* data, int flags) {
   state.file_inode->i_mode = S_IFREG | 0777;
   state.file_inode->i_fop = &file_fops;
   state.file_inode->i_size = 11;
-  state.file_inode->i_opflags = IOP_LOOKUP;
-  state.file_inode->i_op = &root_iops;
+  state.file_inode->i_ino = 1;
 
   state.file_dentry = d_alloc(state.root_dentry, &file_name);
   if (IS_ERR(state.file_dentry)) {

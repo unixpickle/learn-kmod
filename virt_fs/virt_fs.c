@@ -165,6 +165,7 @@ static struct dentry* virt_fs_mount(struct file_system_type* type,
 
 static void virt_fs_kill_sb(struct super_block* sb) {
   dput(state.root_dentry);
+  dput(state.file_dentry);
 }
 
 static struct file_system_type fs_type = {

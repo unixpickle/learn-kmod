@@ -3,6 +3,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/statfs.h>
+#include "virt_fs.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Alex Nichol");
@@ -17,6 +18,8 @@ struct virt_fs_state {
   struct inode* root_inode;
   struct dentry* file_dentry;
   struct inode* file_inode;
+
+  struct virt_fs_node* root_node;
 };
 
 static struct virt_fs_state state;
@@ -179,8 +182,13 @@ static struct file_system_type fs_type = {
 // Module lifecycle
 
 static int __init virt_fs_init(void) {
+  state.root_node = virt_fs_read_tar();
+  if (!state.root_node) {
+    return -EINVAL;
+  }
   int res = register_filesystem(&fs_type);
   if (res) {
+    virt_fs_free_tar(state.root_node);
     return res;
   }
   return 0;
@@ -188,6 +196,7 @@ static int __init virt_fs_init(void) {
 
 static void __exit virt_fs_exit(void) {
   unregister_filesystem(&fs_type);
+  virt_fs_free_tar(state.root_node);
 }
 
 module_init(virt_fs_init);

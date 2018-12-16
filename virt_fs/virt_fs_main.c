@@ -14,70 +14,88 @@ struct virt_fs_state {
   struct vfsmount* mnt;
 
   struct super_block* sb;
-  struct dentry* root_dentry;
-  struct inode* root_inode;
-  struct dentry* file_dentry;
-  struct inode* file_inode;
-
   struct virt_fs_node* root_node;
 };
 
 static struct virt_fs_state state;
 
-// Root directory operations
-
-int virt_fs_root_open(struct inode* inode, struct file* file) {
-  printk(KERN_INFO "virt_fs: root_open\n");
-  return 0;
-}
-
-int virt_fs_root_iterate(struct file* file, struct dir_context* ctx) {
-  printk(KERN_INFO "virt_fs: root_iterate(%lld)\n", ctx->pos);
-  dir_emit_dots(file, ctx);
-  if (ctx->pos == 2) {
-    printk(KERN_INFO "virt_fs: serving up file entry\n");
-    ctx->actor(ctx, "file.txt", 8, ctx->pos, state.file_inode->i_ino,
-               DT_REG | 0777);
-    ctx->pos = 3;
-  }
-  return 0;
-}
-
-static struct file_operations root_fops = {
-    .open = virt_fs_root_open,
-    .iterate = virt_fs_root_iterate,
-};
-
-struct dentry* virt_fs_root_lookup(struct inode* inode,
-                                   struct dentry* entry,
-                                   unsigned int flags) {
-  printk(KERN_INFO "virt_fs: lookup %s\n", entry->d_name.name);
-  if (!strcmp(entry->d_name.name, "file.txt")) {
-    d_add(entry, state.file_inode);
-    return entry;
-  }
-  return ERR_PTR(-ENOENT);
-}
-
-static struct inode_operations root_iops = {
-    .lookup = virt_fs_root_lookup,
-};
+static struct inode* inode_for_node(struct virt_fs_node* node);
+static struct virt_fs_node* node_for_inode(struct inode* inode);
 
 // File operations
 
-int virt_fs_file_open(struct inode* inode, struct file* file) {
-  printk(KERN_INFO "virt_fs: file_open\n");
-  return -EPERM;
+int virt_fs_open(struct inode* inode, struct file* file) {
+  printk(KERN_INFO "virt_fs: open\n");
+  file->private_data = inode;
+  return 0;
 }
 
-static struct file_operations file_fops = {
-    .open = virt_fs_file_open,
+int virt_fs_iterate(struct file* file, struct dir_context* ctx) {
+  struct virt_fs_node* node = node_for_inode(file->private_data);
+  printk(KERN_INFO "virt_fs: iterate(%lld)\n", ctx->pos);
+  dir_emit_dots(file, ctx);
+  if (ctx->pos >= 2 && ctx->pos - 2 < node->num_children) {
+    struct virt_fs_node* child = node->children[ctx->pos - 2];
+    struct inode* inode = inode_for_node(child);
+    int name_len = strlen(child->base_name);
+    if (child->base_name[name_len - 1] == '/') {
+      name_len--;
+    }
+    ctx->actor(ctx, child->base_name, name_len, ctx->pos, inode->i_ino,
+               inode->i_mode);
+    ctx->pos++;
+  }
+  return 0;
+}
+
+static struct file_operations virt_fs_fops = {
+    .open = virt_fs_open,
+    .iterate = virt_fs_iterate,
 };
 
-static const struct qstr file_name = {
-    .hash_len = 8,
-    .name = "file.txt",
+struct dentry* virt_fs_lookup(struct inode* inode,
+                              struct dentry* entry,
+                              unsigned int flags) {
+  struct virt_fs_node* node = node_for_inode(inode);
+  int i;
+  for (i = 0; i < node->num_children; ++i) {
+    if (!memcmp(node->children[i]->base_name, entry->d_name.name,
+                entry->d_name.len)) {
+      char final_char = node->children[i]->base_name[entry->d_name.len];
+      if (final_char == '/' || final_char == 0) {
+        d_add(entry, inode_for_node(node->children[i]));
+      }
+      break;
+    }
+  }
+  return entry;
+}
+
+static struct inode_operations virt_fs_iops = {
+    .lookup = virt_fs_lookup,
 };
+
+// Inodes and dentries.
+
+static struct inode* inode_for_node(struct virt_fs_node* node) {
+  struct inode* inode = iget_locked(state.sb, (unsigned long)node);
+  if (inode->i_state & I_NEW) {
+    inode->i_mode = 0777;
+    if (!node->file_data) {
+      inode->i_mode |= S_IFDIR;
+      inode->i_opflags = IOP_LOOKUP;
+    }
+    inode->i_fop = &virt_fs_fops;
+    inode->i_op = &virt_fs_iops;
+    inode->i_flags = 0;
+    unlock_new_inode(inode);
+  }
+  return inode;
+}
+
+static struct virt_fs_node* node_for_inode(struct inode* inode) {
+  return (struct virt_fs_node*)inode->i_ino;
+}
 
 // Super block
 
@@ -98,7 +116,7 @@ static struct super_operations super_ops = {
 };
 
 static int virt_fs_fill_super(struct super_block* sb, void* data, int flags) {
-  int res;
+  struct inode* root_inode;
 
   if (state.sb) {
     return -EINVAL;
@@ -111,51 +129,15 @@ static int virt_fs_fill_super(struct super_block* sb, void* data, int flags) {
   sb->s_type = &fs_type;
   sb->s_op = &super_ops;
 
-  state.root_inode = new_inode(state.sb);
-  if (!state.root_inode) {
-    res = -ENOMEM;
-    goto fail_sb;
-  }
-  state.root_inode->i_mode = S_IFDIR | 0777;
-  state.root_inode->i_opflags = IOP_LOOKUP;
-  state.root_inode->i_fop = &root_fops;
-  state.root_inode->i_op = &root_iops;
-  state.root_inode->i_ino = 0;
+  root_inode = inode_for_node(state.root_node);
+  printk(KERN_INFO "root_inode mode %d\n", root_inode->i_mode);
 
-  state.root_dentry = d_make_root(state.root_inode);
-  if (IS_ERR(state.root_dentry)) {
-    res = PTR_ERR(state.root_dentry);
-    goto fail_sb;
+  sb->s_root = d_make_root(root_inode);
+  if (IS_ERR(sb->s_root)) {
+    return PTR_ERR(sb->s_root);
   }
-  printk(KERN_INFO "virt_fs: root inode=%ld\n", state.root_inode->i_ino);
-
-  sb->s_root = state.root_dentry;
-
-  state.file_inode = new_inode(state.sb);
-  if (!state.file_inode) {
-    res = -ENOMEM;
-    goto fail_root_dentry;
-  }
-  state.file_inode->i_mode = S_IFREG | 0777;
-  state.file_inode->i_fop = &file_fops;
-  state.file_inode->i_size = 11;
-  state.file_inode->i_ino = 1;
-
-  state.file_dentry = d_alloc(state.root_dentry, &file_name);
-  if (IS_ERR(state.file_dentry)) {
-    iput(state.file_inode);
-    res = PTR_ERR(state.file_dentry);
-    goto fail_root_dentry;
-  }
-  d_instantiate(state.file_dentry, state.file_inode);
 
   return 0;
-
-fail_root_dentry:
-  dput(state.root_dentry);
-fail_sb:
-  deactivate_locked_super(state.sb);
-  return res;
 }
 
 // File system type
@@ -167,10 +149,7 @@ static struct dentry* virt_fs_mount(struct file_system_type* type,
   return mount_single(type, flags, NULL, virt_fs_fill_super);
 }
 
-static void virt_fs_kill_sb(struct super_block* sb) {
-  dput(state.root_dentry);
-  dput(state.file_dentry);
-}
+static void virt_fs_kill_sb(struct super_block* sb) {}
 
 static struct file_system_type fs_type = {
     .name = "virt_fs",
@@ -182,11 +161,12 @@ static struct file_system_type fs_type = {
 // Module lifecycle
 
 static int __init virt_fs_init(void) {
+  int res;
   state.root_node = virt_fs_read_tar();
   if (!state.root_node) {
     return -EINVAL;
   }
-  int res = register_filesystem(&fs_type);
+  res = register_filesystem(&fs_type);
   if (res) {
     virt_fs_free_tar(state.root_node);
     return res;

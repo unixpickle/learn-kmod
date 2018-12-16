@@ -8,7 +8,7 @@ extern const int virt_fs_data_size;
 static const char* get_basename(const char* name) {
   int last_slash = -1;
   int i;
-  for (i = 0; i < strlen(name); ++i) {
+  for (i = 0; i < strlen(name) - 1; ++i) {
     if (name[i] == '/') {
       last_slash = i;
     }
@@ -72,11 +72,11 @@ struct virt_fs_node* virt_fs_read_tar() {
 
   for (offset = 0; offset + 512 <= virt_fs_data_size; offset += 512) {
     const char* full_name = virt_fs_data + offset;
+    struct virt_fs_node* new_node;
+    struct virt_fs_node* parent = find_node(root_node, get_dirname(full_name));
     if (!strlen(full_name)) {
       continue;
     }
-    struct virt_fs_node* new_node;
-    struct virt_fs_node* parent = find_node(root_node, get_dirname(full_name));
     if (!parent) {
       virt_fs_free_tar(root_node);
       return NULL;
@@ -86,7 +86,7 @@ struct virt_fs_node* virt_fs_read_tar() {
     memset(new_node, 0, sizeof(*new_node));
     new_node->full_name = full_name;
     new_node->base_name = get_basename(new_node->full_name);
-    if (strlen(new_node->base_name)) {
+    if (full_name[strlen(full_name) - 1] != '/') {
       char size_str[13];
       long file_size;
       memset(size_str, 0, 13);

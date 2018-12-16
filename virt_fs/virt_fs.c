@@ -50,7 +50,8 @@ struct dentry* virt_fs_root_lookup(struct inode* inode,
                                    unsigned int flags) {
   printk(KERN_INFO "virt_fs: lookup %s\n", entry->d_name.name);
   if (!strcmp(entry->d_name.name, "file.txt")) {
-    return dget(state.file_dentry);
+    d_add(entry, state.file_inode);
+    return entry;
   }
   return ERR_PTR(-ENOENT);
 }

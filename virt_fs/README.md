@@ -1,6 +1,6 @@
 # virt-fs
 
-This is an extremely simple virtual filesystem that exposes a fake file called "file.txt".
+This is an extremely simple virtual filesystem that exposes the contents of a tar file.
 
 # Usage
 

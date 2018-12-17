@@ -3,6 +3,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/statfs.h>
+#include <linux/uaccess.h>
 #include "virt_fs.h"
 
 MODULE_LICENSE("GPL");
@@ -26,12 +27,12 @@ static struct virt_fs_node* node_for_inode(struct inode* inode);
 
 int virt_fs_open(struct inode* inode, struct file* file) {
   printk(KERN_INFO "virt_fs: open\n");
-  file->private_data = inode;
+  file->private_data = node_for_inode(inode);
   return 0;
 }
 
 int virt_fs_iterate(struct file* file, struct dir_context* ctx) {
-  struct virt_fs_node* node = node_for_inode(file->private_data);
+  struct virt_fs_node* node = file->private_data;
   printk(KERN_INFO "virt_fs: iterate(%lld)\n", ctx->pos);
   dir_emit_dots(file, ctx);
   if (ctx->pos >= 2 && ctx->pos - 2 < node->num_children) {
@@ -48,9 +49,28 @@ int virt_fs_iterate(struct file* file, struct dir_context* ctx) {
   return 0;
 }
 
+ssize_t virt_fs_read(struct file* file,
+                     char __user* data,
+                     size_t size,
+                     loff_t* offset) {
+  size_t read_size = size;
+  struct virt_fs_node* node = file->private_data;
+  size_t remaining = (size_t)node->file_size - *offset;
+  if (!node->file_data) {
+    return -EINVAL;
+  }
+  if (remaining < read_size) {
+    read_size = remaining;
+  }
+  copy_to_user(data, node->file_data + *offset, read_size);
+  (*offset) += read_size;
+  return read_size;
+}
+
 static struct file_operations virt_fs_fops = {
     .open = virt_fs_open,
     .iterate = virt_fs_iterate,
+    .read = virt_fs_read,
 };
 
 struct dentry* virt_fs_lookup(struct inode* inode,
@@ -68,7 +88,7 @@ struct dentry* virt_fs_lookup(struct inode* inode,
       break;
     }
   }
-  return entry;
+  return dget(entry);
 }
 
 static struct inode_operations virt_fs_iops = {
@@ -84,6 +104,8 @@ static struct inode* inode_for_node(struct virt_fs_node* node) {
     if (!node->file_data) {
       inode->i_mode |= S_IFDIR;
       inode->i_opflags = IOP_LOOKUP;
+    } else {
+      inode->i_mode |= S_IFREG;
     }
     inode->i_fop = &virt_fs_fops;
     inode->i_op = &virt_fs_iops;

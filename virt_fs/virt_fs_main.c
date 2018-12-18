@@ -35,16 +35,18 @@ int virt_fs_iterate(struct file* file, struct dir_context* ctx) {
   struct virt_fs_node* node = file->private_data;
   printk(KERN_INFO "virt_fs: iterate(%lld)\n", ctx->pos);
   dir_emit_dots(file, ctx);
-  if (ctx->pos >= 2 && ctx->pos - 2 < node->num_children) {
-    struct virt_fs_node* child = node->children[ctx->pos - 2];
-    struct inode* inode = inode_for_node(child);
-    int name_len = strlen(child->base_name);
-    if (child->base_name[name_len - 1] == '/') {
-      name_len--;
+  if (ctx->pos == 2) {
+    struct virt_fs_node* child;
+    list_for_each_entry(child, &node->children, parent_link) {
+      struct inode* inode = inode_for_node(child);
+      int name_len = strlen(child->base_name);
+      if (child->base_name[name_len - 1] == '/') {
+        name_len--;
+      }
+      ctx->actor(ctx, child->base_name, name_len, ctx->pos, inode->i_ino,
+                 inode->i_mode);
+      ctx->pos++;
     }
-    ctx->actor(ctx, child->base_name, name_len, ctx->pos, inode->i_ino,
-               inode->i_mode);
-    ctx->pos++;
   }
   return 0;
 }
@@ -77,13 +79,12 @@ struct dentry* virt_fs_lookup(struct inode* inode,
                               struct dentry* entry,
                               unsigned int flags) {
   struct virt_fs_node* node = node_for_inode(inode);
-  int i;
-  for (i = 0; i < node->num_children; ++i) {
-    if (!memcmp(node->children[i]->base_name, entry->d_name.name,
-                entry->d_name.len)) {
-      char final_char = node->children[i]->base_name[entry->d_name.len];
+  struct virt_fs_node* child;
+  list_for_each_entry(child, &node->children, parent_link) {
+    if (!memcmp(child->base_name, entry->d_name.name, entry->d_name.len)) {
+      char final_char = child->base_name[entry->d_name.len];
       if (final_char == '/' || final_char == 0) {
-        d_add(entry, inode_for_node(node->children[i]));
+        d_add(entry, inode_for_node(child));
       }
       break;
     }

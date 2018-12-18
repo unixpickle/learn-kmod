@@ -2,6 +2,7 @@
 #define __VIRT_FS_H__
 
 #include <linux/fs.h>
+#include <linux/list.h>
 
 // virt_fs_tar.c
 
@@ -16,8 +17,8 @@ struct virt_fs_node {
   const char* file_data;
   int file_size;
 
-  struct virt_fs_node** children;
-  int num_children;
+  struct list_head parent_link;
+  struct list_head children;
 };
 
 struct virt_fs_node* virt_fs_read_tar(void);

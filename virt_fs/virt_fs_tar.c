@@ -32,15 +32,15 @@ static const char* get_dirname(const char* name) {
 
 static struct virt_fs_node* find_node(struct virt_fs_node* parent,
                                       const char* name) {
-  int i;
   if (!strcmp(parent->full_name, name)) {
     return parent;
   }
   if (!parent->file_data) {
-    for (i = 0; i < parent->num_children; ++i) {
-      struct virt_fs_node* node = find_node(parent->children[i], name);
-      if (node) {
-        return node;
+    struct virt_fs_node* node;
+    list_for_each_entry(node, &parent->children, parent_link) {
+      struct virt_fs_node* res = find_node(node, name);
+      if (res) {
+        return res;
       }
     }
   }
@@ -49,17 +49,7 @@ static struct virt_fs_node* find_node(struct virt_fs_node* parent,
 
 static void insert_child(struct virt_fs_node* parent,
                          struct virt_fs_node* child) {
-  struct virt_fs_node** new_children = kmalloc(
-      sizeof(struct virt_fs_node*) * (parent->num_children + 1), GFP_KERNEL);
-  int i;
-  for (i = 0; i < parent->num_children; ++i) {
-    new_children[i] = parent->children[i];
-  }
-  new_children[parent->num_children++] = child;
-  if (parent->children) {
-    kfree(parent->children);
-  }
-  parent->children = new_children;
+  list_add(&child->parent_link, &parent->children);
 }
 
 struct virt_fs_node* virt_fs_read_tar() {
@@ -67,6 +57,7 @@ struct virt_fs_node* virt_fs_read_tar() {
   struct virt_fs_node* root_node =
       kmalloc(sizeof(struct virt_fs_node), GFP_KERNEL);
   memset(root_node, 0, sizeof(*root_node));
+  INIT_LIST_HEAD(&root_node->children);
   root_node->full_name = "";
   root_node->base_name = "";
 
@@ -98,6 +89,8 @@ struct virt_fs_node* virt_fs_read_tar() {
       if (new_node->file_size % 512) {
         offset += 512 - (new_node->file_size % 512);
       }
+    } else {
+      INIT_LIST_HEAD(&new_node->children);
     }
     insert_child(parent, new_node);
   }
@@ -106,12 +99,13 @@ struct virt_fs_node* virt_fs_read_tar() {
 }
 
 void virt_fs_free_tar(struct virt_fs_node* node) {
-  int i;
-  if (node->children) {
-    for (i = 0; i < node->num_children; ++i) {
-      virt_fs_free_tar(node->children[i]);
+  if (!node->file_data) {
+    struct list_head* list = node->children.next;
+    while (list != &node->children) {
+      struct list_head* tmp = list->next;
+      virt_fs_free_tar(list_entry(list, struct virt_fs_node, parent_link));
+      list = tmp;
     }
-    kfree(node->children);
   }
   kfree(node);
 }

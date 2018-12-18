@@ -58,6 +58,9 @@ ssize_t virt_fs_read(struct file* file,
   size_t read_size = size;
   struct virt_fs_node* node = file->private_data;
   size_t remaining = (size_t)node->file_size - *offset;
+  if (*offset > (size_t)node->file_size) {
+    return 0;
+  }
   if (!node->file_data) {
     return -EINVAL;
   }
@@ -69,10 +72,32 @@ ssize_t virt_fs_read(struct file* file,
   return read_size;
 }
 
+loff_t virt_fs_llseek(struct file* file, loff_t offset, int whence) {
+  struct virt_fs_node* node = file->private_data;
+  switch (whence) {
+    case SEEK_SET:
+      break;
+    case SEEK_CUR:
+      offset += file->f_pos;
+      break;
+    case SEEK_END:
+      offset += node->file_size;
+      break;
+    default:
+      return -EINVAL;
+  }
+  if (offset < 0) {
+    return -EINVAL;
+  }
+  file->f_pos = offset;
+  return offset;
+}
+
 static struct file_operations virt_fs_fops = {
     .open = virt_fs_open,
     .iterate = virt_fs_iterate,
     .read = virt_fs_read,
+    .llseek = virt_fs_llseek,
 };
 
 struct dentry* virt_fs_lookup(struct inode* inode,
